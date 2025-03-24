@@ -21,6 +21,9 @@ public slots:
     void highlightText(const QString& text); // Highlight text in the table
     QString getHighlightedText() const; // Retrieve highlighted text
     void addText(const QString& text); // Add text to the table
+
+private:
+    QString getLastRowString();
 };
 
 #endif // HIGHLIGHTTABLEWIDGET_H

@@ -3,6 +3,38 @@
 #include <QDebug>
 #include <qevent.h>
 
+
+std::vector<int> computeKMPTable(const QString &pattern) {
+    int m = pattern.length();
+    std::vector<int> lps(m, 0);
+    int j = 0;
+
+    for (int i = 1; i < m; ++i) {
+        while (j > 0 && pattern[i] != pattern[j]) {
+            j = lps[j - 1];
+        }
+        if (pattern[i] == pattern[j]) {
+            ++j;
+            lps[i] = j;
+        }
+    }
+    return lps;
+}
+
+// Find the longest suffix of A that matches a prefix of B
+int findOverlapKMP(const QString &A, const QString &B) {
+    QString combined = A + "#" + B;
+    std::vector<int> lps = computeKMPTable(combined);
+    return lps.back();
+}
+
+// Merge two strings properly
+QString mergeStrings(const QString &A, const QString &B) {
+    int overlapLen = findOverlapKMP(A, B);
+    return A + B.mid(overlapLen);
+}
+
+
 HighlightTableWidget::HighlightTableWidget(QWidget* parent) : QTableWidget(parent) {
     // Set up a table with one column
     setColumnCount(1);
@@ -49,6 +81,8 @@ void HighlightTableWidget::keyPressEvent(QKeyEvent* event) {
     // Check if the 's' key is pressed
     if (event->key() == Qt::Key_S) {
         emit triggerSendText();
+    } else if (event->key() == Qt::Key_C) {
+        setRowCount(0);
     }
 
     // Call the base class implementation to handle other key events
@@ -69,6 +103,21 @@ QString HighlightTableWidget::getHighlightedText() const {
 }
 
 void HighlightTableWidget::addText(const QString& text) {
+
+    if (text.isEmpty()) return;
+
+    const QString base = getLastRowString();
+
+    if (!base.isEmpty()) {
+        QString mergedText = mergeStrings(base, text);
+        QTableWidgetItem *obj = item(rowCount() - 1, 0);
+        if (obj) {
+            obj->setText(mergedText);
+            resizeRowToContents(rowCount() - 1);
+        }
+        return;
+    }
+
     // Add a new row to the table
     int row = rowCount();
     insertRow(row);
@@ -86,4 +135,15 @@ void HighlightTableWidget::addText(const QString& text) {
 
     // Adjust row height to fit wrapped text
     resizeRowToContents(row);
+}
+
+QString HighlightTableWidget::getLastRowString() {
+    if (rowCount() > 0) {
+        QTableWidgetItem *obj = item(rowCount() - 1, 0);
+        if (obj) {
+            return obj->text();
+        }
+    }
+
+    return QString();
 }

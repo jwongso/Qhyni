@@ -27,6 +27,7 @@ HyniWindow::HyniWindow(QWidget *parent)
     QVBoxLayout *leftLayout = new QVBoxLayout(leftWidget);
 
     highlightTableWidget = new HighlightTableWidget(this);
+    highlightTableWidget->setHorizontalHeaderLabels(QStringList() << "Transcribe");
     leftLayout->addWidget(highlightTableWidget);
 
     promptTextBox = new QTextEdit(this);
@@ -104,7 +105,7 @@ void HyniWindow::sendText() {
         // Display the highlighted text in promptTextBox
         promptTextBox->setText(text);
 
-        highlightTableWidget->clear();
+        highlightTableWidget->setRowCount(0);
     } else {
         qDebug() << "WebSocket is not valid or not connected.";
     }
