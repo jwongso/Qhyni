@@ -1,38 +1,8 @@
 #include "HighlightTableWidget.h"
+#include "Utils.h"
 #include <QHeaderView>
 #include <QDebug>
 #include <qevent.h>
-
-
-std::vector<int> computeKMPTable(const QString &pattern) {
-    int m = pattern.length();
-    std::vector<int> lps(m, 0);
-    int j = 0;
-
-    for (int i = 1; i < m; ++i) {
-        while (j > 0 && pattern[i] != pattern[j]) {
-            j = lps[j - 1];
-        }
-        if (pattern[i] == pattern[j]) {
-            ++j;
-            lps[i] = j;
-        }
-    }
-    return lps;
-}
-
-// Find the longest suffix of A that matches a prefix of B
-int findOverlapKMP(const QString &A, const QString &B) {
-    QString combined = A + "#" + B;
-    std::vector<int> lps = computeKMPTable(combined);
-    return lps.back();
-}
-
-// Merge two strings properly
-QString mergeStrings(const QString &A, const QString &B) {
-    int overlapLen = findOverlapKMP(A, B);
-    return A + B.mid(overlapLen);
-}
 
 
 HighlightTableWidget::HighlightTableWidget(QWidget* parent) : QTableWidget(parent) {
@@ -41,17 +11,17 @@ HighlightTableWidget::HighlightTableWidget(QWidget* parent) : QTableWidget(paren
     setHorizontalHeaderLabels(QStringList() << "Content");
 
     // Make the table fill the entire control
-    horizontalHeader()->setStretchLastSection(true); // Stretch the last column (only column)
-    verticalHeader()->setVisible(false); // Hide the row numbers
-    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding); // Expand to fill available space
+    horizontalHeader()->setStretchLastSection(true);
+    verticalHeader()->setVisible(false);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-    setEditTriggers(QAbstractItemView::NoEditTriggers); // Disable editing
-    setSelectionMode(QAbstractItemView::SingleSelection); // Allow single selection
-    setSelectionBehavior(QAbstractItemView::SelectRows); // Select entire rows
-    setFocusPolicy(Qt::StrongFocus); // Allow focus
+    setEditTriggers(QAbstractItemView::NoEditTriggers);
+    setSelectionMode(QAbstractItemView::SingleSelection);
+    setSelectionBehavior(QAbstractItemView::SelectRows);
+    setFocusPolicy(Qt::StrongFocus);
 
     // Enable word wrapping for the table
-    setWordWrap(true); // Enable word wrapping for the entire table
+    setWordWrap(true);
 }
 
 void HighlightTableWidget::highlightText(const QString& text) {
@@ -109,7 +79,7 @@ void HighlightTableWidget::addText(const QString& text) {
     const QString base = getLastRowString();
 
     if (!base.isEmpty()) {
-        QString mergedText = mergeStrings(base, text);
+        QString mergedText = Utils::mergeStrings(base, text);
         QTableWidgetItem *obj = item(rowCount() - 1, 0);
         if (obj) {
             obj->setText(mergedText);

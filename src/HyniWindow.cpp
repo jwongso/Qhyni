@@ -8,6 +8,7 @@
 #include <QJsonObject>
 #include <QStatusBar>
 
+
 HyniWindow::HyniWindow(QWidget *parent)
 : QMainWindow(parent)
 , websocket(new QWebSocket)
@@ -32,6 +33,7 @@ HyniWindow::HyniWindow(QWidget *parent)
 
     promptTextBox = new QTextEdit(this);
     promptTextBox->setPlaceholderText("Selected Prompt");
+    promptTextBox->setReadOnly(true);
     leftLayout->addWidget(promptTextBox);
 
     leftWidget->setLayout(leftLayout);
@@ -40,6 +42,7 @@ HyniWindow::HyniWindow(QWidget *parent)
     // Right side: GPT response text box
     responseBox = new QTextEdit(this);
     responseBox->setPlaceholderText("GPT Response");
+    responseBox->setReadOnly(true);
     splitter->addWidget(responseBox);
 
     // Adjust initial size proportions
