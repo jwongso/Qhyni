@@ -166,7 +166,7 @@ void HyniWindow::onMessageReceived(const QString& message) {
             qDebug() << "Response Content:" << content;
 
             // Display the response in promptTextBox
-            responseBox->setText(content);
+            responseBox->setMarkdown(content);
         } else if (type == "transcribe") {
             // Handle transcribe messages
             QString content = jsonObject["content"].toString();
