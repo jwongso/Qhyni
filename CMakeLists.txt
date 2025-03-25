@@ -34,6 +34,7 @@ set(SOURCES
 set(HEADERS
     src/HyniWindow.h
     src/HighlightTableWidget.h
+    src/Utils.h
 )
 
 qt_add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
