@@ -9,6 +9,8 @@ class HighlightTableWidget : public QTableWidget {
 
 public:
     explicit HighlightTableWidget(QWidget* parent = nullptr);
+    QString getLastRowString() const;
+    QString getLastRowString();
 
 signals:
     void textHighlighted(const QString& text);
@@ -18,12 +20,19 @@ protected:
     void keyPressEvent(QKeyEvent* event) override;
 
 public slots:
-    void highlightText(const QString& text); // Highlight text in the table
-    QString getHighlightedText() const; // Retrieve highlighted text
-    void addText(const QString& text); // Add text to the table
+    void highlightText(const QString& text);
+    void addText(const QString& text);
 
 private:
-    QString getLastRowString();
+    QString getLastRowStringImpl() const {
+        if (rowCount() > 0) {
+            QTableWidgetItem *obj = item(rowCount() - 1, 0);
+            if (obj) {
+                return obj->text();
+            }
+        }
+        return QString();
+    }
 };
 
 #endif // HIGHLIGHTTABLEWIDGET_H

@@ -26,7 +26,6 @@ private slots:
     void onError(QAbstractSocket::SocketError error);
 
 private:
-    void keyPressEvent(QKeyEvent *event) override;
     void sendText();
 
 private:

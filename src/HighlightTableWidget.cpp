@@ -59,19 +59,6 @@ void HighlightTableWidget::keyPressEvent(QKeyEvent* event) {
     QTableWidget::keyPressEvent(event);
 }
 
-QString HighlightTableWidget::getHighlightedText() const {
-    // Get the current selection
-    QList<QTableWidgetItem*> selectedItems = this->selectedItems();
-
-    // If there is a selection, return the text of the first selected item
-    if (!selectedItems.isEmpty()) {
-        return selectedItems.first()->text(); // Return the text of the first selected item
-    }
-
-    // If no text is selected, return an empty string
-    return QString();
-}
-
 void HighlightTableWidget::addText(const QString& text) {
 
     if (text.isEmpty()) return;
@@ -107,13 +94,10 @@ void HighlightTableWidget::addText(const QString& text) {
     resizeRowToContents(row);
 }
 
-QString HighlightTableWidget::getLastRowString() {
-    if (rowCount() > 0) {
-        QTableWidgetItem *obj = item(rowCount() - 1, 0);
-        if (obj) {
-            return obj->text();
-        }
-    }
+QString HighlightTableWidget::getLastRowString() const {
+    return getLastRowStringImpl();
+}
 
-    return QString();
+QString HighlightTableWidget::getLastRowString()  {
+    return getLastRowStringImpl();
 }

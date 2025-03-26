@@ -78,17 +78,9 @@ HyniWindow::~HyniWindow() {
     delete reconnectTimer;
 }
 
-
-void HyniWindow::keyPressEvent(QKeyEvent *event) {
-    if (event->key() == Qt::Key_S) {
-        sendText();
-    }
-    QMainWindow::keyPressEvent(event);
-}
-
 void HyniWindow::sendText() {
 
-    const QString text = highlightTableWidget->getHighlightedText();
+    const QString text = highlightTableWidget->getLastRowString();
 
     if (websocket && websocket->isValid() && !text.isEmpty()) {
         // Create a JSON object with the highlighted text
