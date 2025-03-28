@@ -1,99 +1,159 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#include <qobject.h>
-#include <QHash>
-#include <QRegularExpression>
+#include <QString>
+#include <QVector>
+#include <unordered_map>
+#include <algorithm>
+#include <numeric>
 
-class Utils {
+class [[nodiscard]] Utils final {  // Mark as final if not meant to be inherited
+// Likely/unlikely macros for branch prediction
+#if defined(__GNUC__) || defined(__clang__)
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
+#else
+#define likely(x) (x)
+#define unlikely(x) (x)
+#endif
 public:
-    // Combined normalization and splitting in one pass
-    static QVector<QString> splitAndNormalize(const QString &text) {
+    [[nodiscard]] static QVector<QString> splitAndNormalize(const QString& text) noexcept {
         QVector<QString> result;
-        QString current;
-        current.reserve(32); // Reserve typical word length
+        if (text.isEmpty()) return result;
 
-        for (const QChar& ch : text) {
-            if (ch == ' ') {
+        // More precise capacity estimation
+        const int spaceCount = std::count(text.begin(), text.end(), ' ');
+        result.reserve(spaceCount + 1);  // At least as many words as spaces + 1
+
+        QString current;
+        current.reserve(32);  // Keep reasonable word length
+
+        const QChar* data = text.constData();
+        const int length = text.length();
+
+        for (int i = 0; i < length; ++i) {
+            const QChar& ch = data[i];
+            if (isFilteredChar(ch)) {
                 if (!current.isEmpty()) {
-                    result.append(current);
+                    result.emplace_back(std::move(current));
                     current.clear();
                 }
-            }
-            else if (ch != ',' && ch != '.' && ch != ';' && ch != '-') {
+            } else {
                 current.append(ch);
             }
         }
 
         if (!current.isEmpty()) {
-            result.append(current);
+            result.emplace_back(std::move(current));
         }
 
+        // Only shrink if significantly over-allocated
+        if (result.capacity() > result.size() * 2) {
+            result.shrink_to_fit();
+        }
         return result;
     }
 
-    // Advanced optimized merge function
-    static QString mergeStrings(const QString &A, const QString &B) {
-        // Early exit if strings are empty
+    [[nodiscard]] static QString mergeStrings(const QString& A, const QString& B) noexcept {
         if (A.isEmpty()) return B;
         if (B.isEmpty()) return A;
 
-        QVector<QString> base = splitAndNormalize(A);
-        QVector<QString> tail = splitAndNormalize(B);
+        const QVector<QString> base = splitAndNormalize(A);
+        const QVector<QString> tail = splitAndNormalize(B);
 
-        // Use a single hash map for trigram to position
-        std::unordered_map<uint, QVector<int>> trigramIndex;
-        const int baseSize = base.size();
+        if (base.isEmpty()) return B;
+        if (tail.isEmpty()) return A;
 
-        // Build trigram index using hashes instead of strings
-        for (int i = 0; i < baseSize - 2; ++i) {
-            if (base[i].length() >= 1 && base[i+1].length() >= 1 && base[i+2].length() >= 1) {
-                uint hash = qHash(base[i]) ^ qHash(base[i+1]) ^ qHash(base[i+2]);
-                trigramIndex[hash].append(i);
+        // Optimized hash function with better mixing
+        auto computeTrigramHash = [](const QString& a, const QString& b, const QString& c) noexcept {
+            uint64_t h1 = qHash(a);
+            uint64_t h2 = qHash(b);
+            uint64_t h3 = qHash(c);
+            return ((h1 * 0xFEA5B) ^ (h2 * 0x8DA6B) ^ (h3 * 0x7A97C)) * 0x9E3779B9;
+        };
+
+        // Build trigram index with view-based optimization
+        std::unordered_map<uint64_t, QVector<int>> trigramIndex;
+        trigramIndex.reserve(std::max(0, static_cast<int>(base.size() - 2)));
+
+        for (int i = 0; i < base.size() - 2; ++i) {
+            if (likely(!base[i].isEmpty() && !base[i+1].isEmpty() && !base[i+2].isEmpty())) {
+                trigramIndex[computeTrigramHash(base[i], base[i+1], base[i+2])].push_back(i);
             }
         }
 
-        int bestMatchIndex = -1;
-        const int tailSize = tail.size();
+        // Optimized matching with early exit
+        int bestMatchIndex = findBestMatch(tail, base, trigramIndex);
 
-        for (int i = 0; i <= tailSize - 3; ++i) {
-            if (tail[i].length() < 1 || tail[i+1].length() < 1 || tail[i+2].length() < 1) {
+        // Calculate exact required size
+        const int totalSize = calculateResultSize(A, B, base, tail, bestMatchIndex);
+        QString result;
+        result.reserve(totalSize);
+
+        if (bestMatchIndex > 0) {
+            result = base[0];
+            for (int i = 1; i < bestMatchIndex; ++i) {
+                result += ' ';
+                result += base[i];
+            }
+            result += ' ';
+        } else if (bestMatchIndex < 0) {
+            result = A;
+            if (!result.endsWith(' ')) result += ' ';
+        }
+
+        result += B;
+        return result;
+    }
+
+private:
+    [[nodiscard]] static constexpr bool isFilteredChar(const QChar& ch) noexcept {
+        const ushort uc = ch.unicode();
+        // Branchless version - may be faster on some architectures
+        return (uc == ' ') | (uc == ',') | (uc == '.') | (uc == ';') | (uc == '-');
+    }
+
+    [[nodiscard]] static int findBestMatch(const QVector<QString>& tail,
+                                           const QVector<QString>& base,
+                                           const std::unordered_map<uint64_t, QVector<int>>& trigramIndex) noexcept {
+        for (int i = 0; i < tail.size() - 2; ++i) {
+            if (unlikely(tail[i].isEmpty() || tail[i+1].isEmpty() || tail[i+2].isEmpty())) {
                 continue;
             }
 
-            uint tailHash = qHash(tail[i]) ^ qHash(tail[i+1]) ^ qHash(tail[i+2]);
-            auto trigramIt = trigramIndex.find(tailHash);
-            if (trigramIt != trigramIndex.end()) {
-                for (int baseIndex : trigramIt->second) {
-                    if (baseIndex + 2 < baseSize &&
+            // Optimized hash function with better mixing
+            auto computeTrigramHash = [](const QString& a, const QString& b, const QString& c) noexcept {
+                uint64_t h1 = qHash(a);
+                uint64_t h2 = qHash(b);
+                uint64_t h3 = qHash(c);
+                return ((h1 * 0xFEA5B) ^ (h2 * 0x8DA6B) ^ (h3 * 0x7A97C)) * 0x9E3779B9;
+            };
+
+            const uint64_t tailHash = computeTrigramHash(tail[i], tail[i+1], tail[i+2]);
+            if (const auto it = trigramIndex.find(tailHash); it != trigramIndex.end()) {
+                for (int baseIndex : it->second) {
+                    if (baseIndex + 2 < base.size() &&
                         tail[i] == base[baseIndex] &&
                         tail[i+1] == base[baseIndex+1] &&
                         tail[i+2] == base[baseIndex+2]) {
-                        bestMatchIndex = baseIndex;
-                        break;
+                        return baseIndex;
                     }
                 }
-                if (bestMatchIndex >= 0) break;
             }
         }
+        return -1;
+    }
 
-        // Construct merged result
-        QString result;
-        result.reserve(A.size() + B.size() + 1);
-
+    [[nodiscard]] static int calculateResultSize(const QString& A, const QString& B,
+                                                 const QVector<QString>& base,
+                                                 const QVector<QString>& tail,
+                                                 int bestMatchIndex) noexcept {
         if (bestMatchIndex > 0) {
-            for (int i = 0; i < bestMatchIndex; ++i) {
-                if (i != 0) result += ' ';
-                result += base[i];
-            }
-            if (!tail.isEmpty()) result += ' ';
-        } else if (bestMatchIndex < 0 && !base.isEmpty()) {
-            result = base.join(' ');
-            if (!tail.isEmpty()) result += ' ';
+            int size = std::accumulate(base.begin(), base.begin() + bestMatchIndex, 0,
+                                       [](int sum, const QString& s) { return sum + s.size(); });
+            return size + bestMatchIndex - 1 + 1 + B.size();  // words + spaces + space + B
         }
-
-        result += tail.join(' ');
-        return result;
+        return A.size() + (A.endsWith(' ') ? 0 : 1) + B.size();
     }
 };
 

@@ -9,6 +9,7 @@
 
 class QWebSocket;
 class QTextEdit;
+class QRadioButton;
 
 class HyniWindow : public QMainWindow {
     Q_OBJECT
@@ -25,6 +26,9 @@ private slots:
     void onMessageReceived(const QString &message);
     void onError(QAbstractSocket::SocketError error);
 
+protected:
+    void keyPressEvent(QKeyEvent* event) override;
+
 private:
     void sendText();
 
@@ -35,6 +39,8 @@ private:
     QTextEdit *responseBox;
     QTimer *reconnectTimer;
     QString highlightedText;
+    QRadioButton *starOption;
+    QRadioButton *generalOption;
 };
 
 #endif // HYNIWINDOW_H

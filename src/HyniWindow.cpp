@@ -7,7 +7,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QStatusBar>
-
+#include <QGroupBox>
+#include <QRadioButton>
 
 HyniWindow::HyniWindow(QWidget *parent)
 : QMainWindow(parent)
@@ -16,11 +17,14 @@ HyniWindow::HyniWindow(QWidget *parent)
 {
     setWindowTitle("Hyni - Real-time Transcription");
     resize(800, 500);
+    setFocusPolicy(Qt::StrongFocus);
+    setFocus();
 
     QWidget *centralWidget = new QWidget(this);
     QVBoxLayout *mainLayout = new QVBoxLayout(centralWidget);
 
     // Create splitter for adjustable layout
+    QSplitter *leftSplitter = new QSplitter(Qt::Vertical, this);
     QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
 
     // Left side: Two text boxes stacked vertically
@@ -29,12 +33,28 @@ HyniWindow::HyniWindow(QWidget *parent)
 
     highlightTableWidget = new HighlightTableWidget(this);
     highlightTableWidget->setHorizontalHeaderLabels(QStringList() << "Transcribe");
-    leftLayout->addWidget(highlightTableWidget);
+    leftSplitter->addWidget(highlightTableWidget);
 
     promptTextBox = new QTextEdit(this);
     promptTextBox->setPlaceholderText("Selected Prompt");
     promptTextBox->setReadOnly(true);
-    leftLayout->addWidget(promptTextBox);
+    leftSplitter->addWidget(promptTextBox);
+
+    leftSplitter->setSizes({300, 200});
+
+    QGroupBox *questionTypeBox = new QGroupBox(this);
+    QHBoxLayout *questionTypeLayout = new QHBoxLayout(questionTypeBox);
+
+    starOption = new QRadioButton("STAR", this);
+    generalOption = new QRadioButton("General (Coding/System Design)", this);
+    generalOption->setChecked(true);  // Default selection
+
+    questionTypeLayout->addWidget(starOption);
+    questionTypeLayout->addWidget(generalOption);
+    questionTypeBox->setLayout(questionTypeLayout);
+
+    leftLayout->addWidget(leftSplitter);
+    leftLayout->addWidget(questionTypeBox);
 
     leftWidget->setLayout(leftLayout);
     splitter->addWidget(leftWidget);
@@ -78,6 +98,25 @@ HyniWindow::~HyniWindow() {
     delete reconnectTimer;
 }
 
+void HyniWindow::keyPressEvent(QKeyEvent* event) {
+    // Check if the 's' key is pressed
+    if (event->key() == Qt::Key_S) {
+        sendText();
+    } else if (event->key() == Qt::Key_C) {
+        highlightTableWidget->clearRow();
+    } else if (event->key() == Qt::Key_T) {
+        if (starOption->isChecked()) {
+            generalOption->setChecked(true);
+        }
+        else {
+            starOption->setChecked(true);
+        }
+    }
+
+    // Call the base class implementation to handle other key events
+    QMainWindow::keyPressEvent(event);
+}
+
 void HyniWindow::sendText() {
 
     const QString text = highlightTableWidget->getLastRowString();
@@ -86,7 +125,8 @@ void HyniWindow::sendText() {
         // Create a JSON object with the highlighted text
         QJsonObject prompt_message;
         prompt_message["type"] = "prompt";
-        prompt_message["content"] = text; // Use the single highlighted text
+        prompt_message["content"] = text;
+        prompt_message["star"] = starOption->isChecked();
 
         // Convert the JSON object to a JSON document
         QJsonDocument jsonDocument(prompt_message);

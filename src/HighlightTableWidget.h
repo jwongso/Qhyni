@@ -11,13 +11,11 @@ public:
     explicit HighlightTableWidget(QWidget* parent = nullptr);
     QString getLastRowString() const;
     QString getLastRowString();
+    void clearRow();
 
 signals:
     void textHighlighted(const QString& text);
     void triggerSendText();
-
-protected:
-    void keyPressEvent(QKeyEvent* event) override;
 
 public slots:
     void highlightText(const QString& text);

@@ -18,7 +18,6 @@ HighlightTableWidget::HighlightTableWidget(QWidget* parent) : QTableWidget(paren
     setEditTriggers(QAbstractItemView::NoEditTriggers);
     setSelectionMode(QAbstractItemView::SingleSelection);
     setSelectionBehavior(QAbstractItemView::SelectRows);
-    setFocusPolicy(Qt::StrongFocus);
 
     // Enable word wrapping for the table
     setWordWrap(true);
@@ -47,16 +46,8 @@ void HighlightTableWidget::highlightText(const QString& text) {
     }
 }
 
-void HighlightTableWidget::keyPressEvent(QKeyEvent* event) {
-    // Check if the 's' key is pressed
-    if (event->key() == Qt::Key_S) {
-        emit triggerSendText();
-    } else if (event->key() == Qt::Key_C) {
-        setRowCount(0);
-    }
-
-    // Call the base class implementation to handle other key events
-    QTableWidget::keyPressEvent(event);
+void HighlightTableWidget::clearRow() {
+    setRowCount(0);
 }
 
 void HighlightTableWidget::addText(const QString& text) {
