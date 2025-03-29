@@ -1,5 +1,5 @@
 #include "HighlightTableWidget.h"
-#include "Utils.h"
+#include "utils.h"
 #include <QHeaderView>
 #include <QDebug>
 #include <qevent.h>
@@ -57,10 +57,10 @@ void HighlightTableWidget::addText(const QString& text) {
     const QString base = getLastRowString();
 
     if (!base.isEmpty()) {
-        QString mergedText = Utils::mergeStrings(base, text);
+        std::string mergedText = hyni::Utils::mergeStrings(base.toStdString(), text.toStdString());
         QTableWidgetItem *obj = item(rowCount() - 1, 0);
         if (obj) {
-            obj->setText(mergedText);
+            obj->setText(QString::fromStdString(mergedText));
             resizeRowToContents(rowCount() - 1);
         }
         return;
