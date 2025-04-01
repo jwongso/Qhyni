@@ -1,5 +1,5 @@
 #include "HighlightTableWidget.h"
-#include "utils.h"
+#include "hyni_merge.h"
 #include <QHeaderView>
 #include <QDebug>
 #include <qevent.h>
@@ -18,6 +18,7 @@ HighlightTableWidget::HighlightTableWidget(QWidget* parent) : QTableWidget(paren
     setEditTriggers(QAbstractItemView::NoEditTriggers);
     setSelectionMode(QAbstractItemView::SingleSelection);
     setSelectionBehavior(QAbstractItemView::SelectRows);
+    setFocusPolicy(Qt::NoFocus);
 
     // Enable word wrapping for the table
     setWordWrap(true);
@@ -57,7 +58,7 @@ void HighlightTableWidget::addText(const QString& text) {
     const QString base = getLastRowString();
 
     if (!base.isEmpty()) {
-        std::string mergedText = hyni::Utils::mergeStrings(base.toStdString(), text.toStdString());
+        std::string mergedText = hyni::HyniMerge::mergeStrings(base.toStdString(), text.toStdString());
         QTableWidgetItem *obj = item(rowCount() - 1, 0);
         if (obj) {
             obj->setText(QString::fromStdString(mergedText));

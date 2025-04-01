@@ -26,8 +26,8 @@ string(
 )
 add_compile_options("${opts}")
 
-add_library(hyni_merger SHARED src/utils.h)
-set_target_properties(hyni_merger PROPERTIES LINKER_LANGUAGE CXX)
+add_library(hyni_merge SHARED src/hyni_merge.h)
+set_target_properties(hyni_merge PROPERTIES LINKER_LANGUAGE CXX)
 
 set(SOURCES
     src/main.cpp
@@ -41,7 +41,7 @@ set(HEADERS
 
 qt_add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
 
-target_link_libraries(${PROJECT_NAME} PRIVATE hyni_merger Qt6::Core Qt6::Gui Qt6::Widgets Qt6::WebSockets)
+target_link_libraries(${PROJECT_NAME} PRIVATE hyni_merge Qt6::Core Qt6::Gui Qt6::Widgets Qt6::WebSockets)
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY AUTOMOC ON)
 

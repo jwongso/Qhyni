@@ -1,5 +1,5 @@
-#ifndef HYNI_UTILS_H
-#define HYNI_UTILS_H
+#ifndef HYNI_MERGE_H
+#define HYNI_MERGE_H
 
 #include <cstdint>
 #include <string>
@@ -11,7 +11,7 @@
 namespace hyni
 {
 
-class [[nodiscard]] Utils final {  // Mark as final if not meant to be inherited
+class [[nodiscard]] HyniMerge final {  // Mark as final if not meant to be inherited
 // Likely/unlikely macros for branch prediction
 #if defined(__GNUC__) || defined(__clang__)
 #define likely(x) __builtin_expect(!!(x), 1)
@@ -77,7 +77,7 @@ public:
         };
 
         // Build trigram index with view-based optimization
-        std::unordered_map<size_t, std::vector<int>> trigramIndex;
+        std::unordered_map<uint64_t, std::vector<int>> trigramIndex;
         trigramIndex.reserve(std::max(0, static_cast<int>(base.size()) - 2));
 
         for (size_t i = 0; i + 2 < base.size(); ++i) {
