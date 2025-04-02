@@ -3,8 +3,7 @@
 #include <QTimer>
 #include <QThread>
 #include <QMessageBox>
-#include <QJsonDocument>
-#include <QJsonObject>
+#include <QInputDialog>
 #include <QDebug>
 #include <qapplication.h>
 #include <qevent.h>
@@ -167,6 +166,8 @@ void HyniWindow::setupAPIWorker() {
             this, &HyniWindow::handleAPIResponse);
     connect(m_apiWorker, &ChatAPIWorker::errorOccurred,
             this, &HyniWindow::handleAPIError);
+    connect(m_apiWorker, &ChatAPIWorker::needApiKey,
+            this, &HyniWindow::handleNeedAPIKey);
 
     // Cleanup
     connect(m_apiThread, &QThread::finished,
@@ -183,6 +184,22 @@ void HyniWindow::handleAPIResponse(const QString& response) {
 void HyniWindow::handleAPIError(const QString& error) {
     QMessageBox::warning(this, "API Error", error);
     statusBar()->showMessage(error, 5000);
+}
+
+void HyniWindow::handleNeedAPIKey() {
+    bool ok;
+    QString label = "Enter your API Key for ";
+    if (m_apiWorker->getProvider() == hyni::chat_api::API_PROVIDER::OpenAI) {
+        label += "Open AI";
+    } else if (m_apiWorker->getProvider() == hyni::chat_api::API_PROVIDER::DeepSeek) {
+        label += "DeepSeek";
+    } else {
+        label += "Unknown";
+    }
+    QString userKey = QInputDialog::getText(nullptr, "API Key", label, QLineEdit::Normal, "", &ok);
+    if (ok && !userKey.isEmpty()) {
+        m_apiWorker->setAPIKey(userKey);
+    }
 }
 
 void HyniWindow::keyPressEvent(QKeyEvent* event) {

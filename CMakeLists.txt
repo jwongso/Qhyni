@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 cmake_policy(SET CMP0167 OLD)
 
+find_package(Boost REQUIRED COMPONENTS system)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets WebSockets)
 
 find_program(CCACHE_FOUND ccache)
@@ -29,20 +30,71 @@ add_compile_options("${opts}")
 
 include(FetchContent)
 
-# Fetch the hyni project via SSH
+set(HYNI_REPO "git@github.com:jwongso/hyni.git")
+set(HYNI_TAG "main")  # Can be a branch name, tag, or commit hash
+
+# Declare the FetchContent dependency
 FetchContent_Declare(
     hyni
-    GIT_REPOSITORY git@github.com:jwongso/hyni.git
-    GIT_TAG main
-    GIT_SHALLOW TRUE
+    GIT_REPOSITORY ${HYNI_REPO}
+    GIT_TAG ${HYNI_TAG}
+    GIT_PROGRESS TRUE
 )
-
-FetchContent_MakeAvailable(hyni)
 
 FetchContent_GetProperties(hyni)
 
-# Find Boost (if needed by hyni)
-find_package(Boost REQUIRED COMPONENTS system)
+if(NOT hyni_POPULATED)
+    message(STATUS "Fetching hyni for the first time...")
+else()
+    message(STATUS "Checking for updates in hyni...")
+
+    # Run git fetch to check for new commits
+    execute_process(
+        COMMAND git fetch
+        WORKING_DIRECTORY ${hyni_SOURCE_DIR}
+        RESULT_VARIABLE GIT_FETCH_RESULT
+        ERROR_QUIET
+    )
+
+    # Get the latest remote commit hash
+    execute_process(
+        COMMAND git rev-parse origin/${HYNI_TAG}
+        WORKING_DIRECTORY ${hyni_SOURCE_DIR}
+        OUTPUT_VARIABLE REMOTE_COMMIT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    # Get the currently checked-out commit hash
+    execute_process(
+        COMMAND git rev-parse HEAD
+        WORKING_DIRECTORY ${hyni_SOURCE_DIR}
+        OUTPUT_VARIABLE LOCAL_COMMIT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    if(NOT "${REMOTE_COMMIT}" STREQUAL "${LOCAL_COMMIT}")
+        message(STATUS "New commit detected in hyni, pulling latest changes...")
+
+        execute_process(
+            COMMAND git pull
+            WORKING_DIRECTORY ${hyni_SOURCE_DIR}
+            RESULT_VARIABLE GIT_PULL_RESULT
+            ERROR_QUIET
+        )
+
+        if(GIT_PULL_RESULT EQUAL 0)
+            message(STATUS "hyni updated successfully! Reconfiguring project...")
+            set_property(DIRECTORY PROPERTY CMAKE_CONFIGURE_DEPENDS "${hyni_SOURCE_DIR}")
+        else()
+            message(WARNING "hyni update failed or no new changes were found.")
+        endif()
+    else()
+        message(STATUS "hyni is already up to date.")
+    endif()
+endif()
+
+# Make hyni available
+FetchContent_MakeAvailable(hyni)
 
 # Your UI sources
 set(UI_SOURCES
@@ -63,10 +115,7 @@ qt_add_executable(${PROJECT_NAME} ${UI_SOURCES} ${UI_HEADERS})
 target_link_libraries(${PROJECT_NAME} PRIVATE hyni Qt6::Core Qt6::Gui Qt6::Widgets Qt6::WebSockets)
 
 if(TARGET hyni)
-    target_link_libraries(${PROJECT_NAME} PRIVATE hyni)
-
-    # Modern CMake projects should automatically propagate their include directories
-    # through their target properties, but if they don't:
+    # Ensure headers from hyni are included
     get_target_property(HYNI_INCLUDE_DIRS hyni INTERFACE_INCLUDE_DIRECTORIES)
     if(HYNI_INCLUDE_DIRS)
         target_include_directories(${PROJECT_NAME} PRIVATE ${HYNI_INCLUDE_DIRS})
@@ -75,7 +124,7 @@ if(TARGET hyni)
         target_include_directories(${PROJECT_NAME} PRIVATE
             ${hyni_SOURCE_DIR}/include
             ${hyni_SOURCE_DIR}/src
-            ${hyni_BINARY_DIR}  # For generated headers if any
+            ${hyni_BINARY_DIR}  # For generated headers, if any
         )
     endif()
 else()

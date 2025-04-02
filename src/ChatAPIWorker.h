@@ -12,15 +12,18 @@ class ChatAPIWorker : public QObject {
 public:
     explicit ChatAPIWorker(QObject *parent = nullptr);
     ~ChatAPIWorker();
+    hyni::chat_api::API_PROVIDER getProvider() const;
 
 public slots:
     void sendRequest(const QString& message, bool isStarQuestion);
     void cancelCurrentRequest();
+    void setAPIKey(const QString& apiKey);
 
 signals:
     void responseReceived(const QString& response);
     void errorOccurred(const QString& error);
     void requestCancelled();
+    void needApiKey();
 
 private:
     std::unique_ptr<hyni::chat_api> m_chatAPI;

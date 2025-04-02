@@ -34,6 +34,7 @@ private slots:
     void onWebSocketError(const std::string& error);
     void handleAPIResponse(const QString& response);
     void handleAPIError(const QString& error);
+    void handleNeedAPIKey();
 
 private:
     void attemptReconnect();
