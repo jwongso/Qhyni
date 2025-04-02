@@ -49,7 +49,7 @@ private:
 
     std::unique_ptr<QTimer> reconnectTimer;
     std::unique_ptr<boost::asio::io_context> io_context;
-    std::shared_ptr<HyniWebSocketClient> websocketClient;
+    std::shared_ptr<hyni_websocket_client> websocketClient;
     std::thread io_thread;
 
     QThread* m_apiThread;

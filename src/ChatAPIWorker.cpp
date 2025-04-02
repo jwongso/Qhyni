@@ -1,4 +1,5 @@
 #include "ChatAPIWorker.h"
+#include "chat_api.h"
 #include "config.h"
 #include <QDebug>
 #include <exception>
@@ -9,7 +10,7 @@ ChatAPIWorker::ChatAPIWorker(QObject *parent)
     m_isBusy(false),
     m_cancelRequested(false) {
     try {
-        m_chatAPI = std::make_unique<hyni::ChatAPI>(hyni::DS_API_URL);
+        m_chatAPI = std::make_unique<hyni::chat_api>(hyni::DS_API_URL);
     } catch (const std::exception& e) {
         qCritical() << "API init failed:" << e.what();
         emit errorOccurred(QString("API initialization failed: %1").arg(e.what()));
@@ -39,14 +40,14 @@ void ChatAPIWorker::sendRequest(const QString& message, bool isStarQuestion) {
 
     try {
         const auto questionType = isStarQuestion
-                                      ? hyni::ChatAPI::QuestionType::AmazonBehavioral
-                                      : hyni::ChatAPI::QuestionType::General;
+                                      ? hyni::chat_api::QUESTION_TYPE::AmazonBehavioral
+                                      : hyni::chat_api::QUESTION_TYPE::General;
 
         // Single cancellation check point
         const bool wasCancelled = [&]() {
             if (m_cancelRequested.load()) return true;
 
-            auto response = m_chatAPI->sendMessage(
+            auto response = m_chatAPI->send_message(
                 message.toStdString(),
                 questionType,
                 1500,
@@ -56,7 +57,7 @@ void ChatAPIWorker::sendRequest(const QString& message, bool isStarQuestion) {
 
             if (m_cancelRequested.load()) return true;
 
-            response = m_chatAPI->getAssistantReply(response);
+            response = m_chatAPI->get_assistant_reply(response);
             emit responseReceived(QString::fromStdString(response));
             return false;
         }();

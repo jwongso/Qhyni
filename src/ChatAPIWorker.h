@@ -3,7 +3,7 @@
 
 #include <QObject>
 #include <memory>
-#include "chatapi.h"
+#include "chat_api.h"
 #include <atomic>
 
 class ChatAPIWorker : public QObject {
@@ -23,7 +23,7 @@ signals:
     void requestCancelled();
 
 private:
-    std::unique_ptr<hyni::ChatAPI> m_chatAPI;
+    std::unique_ptr<hyni::chat_api> m_chatAPI;
     std::atomic<bool> m_isBusy{false};
     std::atomic<bool> m_cancelRequested{false};
 };

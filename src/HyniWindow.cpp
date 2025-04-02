@@ -77,18 +77,18 @@ HyniWindow::HyniWindow(QWidget *parent)
     setCentralWidget(centralWidget);
 
     // Initialize WebSocket client
-    websocketClient = std::make_shared<HyniWebSocketClient>(*io_context, "localhost", "8080");
-    websocketClient->setMessageHandler([this](const std::string& message) {
+    websocketClient = std::make_shared<hyni_websocket_client>(*io_context, "localhost", "8080");
+    websocketClient->set_message_handler([this](const std::string& message) {
         QMetaObject::invokeMethod(this, [this, message]() {
             onMessageReceived(message);
         });
     });
-    websocketClient->setConnectionHandler([this](bool connected) {
+    websocketClient->set_connection_handler([this](bool connected) {
         QMetaObject::invokeMethod(this, [this, connected]() {
             onWebSocketConnected(connected);
         });
     });
-    websocketClient->setErrorHandler([this](const std::string& error) {
+    websocketClient->set_error_handler([this](const std::string& error) {
         QMetaObject::invokeMethod(this, [this, error]() {
             onWebSocketError(error);
         });
@@ -163,11 +163,14 @@ void HyniWindow::setupAPIWorker() {
 
     m_apiWorker->moveToThread(m_apiThread);
 
-    // Automatic cleanup connections
+    connect(m_apiWorker, &ChatAPIWorker::responseReceived,
+            this, &HyniWindow::handleAPIResponse);
+    connect(m_apiWorker, &ChatAPIWorker::errorOccurred,
+            this, &HyniWindow::handleAPIError);
+
+    // Cleanup
     connect(m_apiThread, &QThread::finished,
             m_apiWorker, &QObject::deleteLater);
-    connect(m_apiThread, &QThread::finished,
-            m_apiThread, &QObject::deleteLater);
 
     m_apiThread->start();
 }
@@ -250,7 +253,7 @@ void HyniWindow::onWebSocketError(const std::string& error) {
 }
 
 void HyniWindow::attemptReconnect() {
-    if (!websocketClient->isConnected()) {
+    if (!websocketClient->is_connected()) {
         statusBar()->showMessage("Trying to reconnect...");
         websocketClient->connect();
     }
