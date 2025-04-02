@@ -25,12 +25,10 @@ private slots:
     void attemptReconnect();
     void onMessageReceived(const QString &message);
     void onError(QAbstractSocket::SocketError error);
+    void sendText(bool repeat = false);
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
-
-private:
-    void sendText();
 
 private:
     QWebSocket *websocket;

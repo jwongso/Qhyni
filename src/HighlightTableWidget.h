@@ -15,7 +15,6 @@ public:
 
 signals:
     void textHighlighted(const QString& text);
-    void triggerSendText();
 
 public slots:
     void highlightText(const QString& text);

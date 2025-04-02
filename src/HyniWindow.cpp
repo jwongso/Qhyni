@@ -75,7 +75,6 @@ HyniWindow::HyniWindow(QWidget *parent)
     connect(sendButton, &QPushButton::clicked, this, &HyniWindow::sendText);
 
     connect(highlightTableWidget, &HighlightTableWidget::textHighlighted, this, &HyniWindow::handleHighlightedText);
-    connect(highlightTableWidget, &HighlightTableWidget::triggerSendText, this, &HyniWindow::sendText);
 
     setCentralWidget(centralWidget);
 
@@ -99,27 +98,39 @@ HyniWindow::~HyniWindow() {
 }
 
 void HyniWindow::keyPressEvent(QKeyEvent* event) {
-    // Check if the 's' key is pressed
-    if (event->key() == Qt::Key_S) {
+    if (event->key() == Qt::Key_S) {            /// Send as prompt
         sendText();
-    } else if (event->key() == Qt::Key_C) {
+    } else if (event->key() == Qt::Key_C) {     /// Clear the transcribed text
         highlightTableWidget->clearRow();
-    } else if (event->key() == Qt::Key_T) {
+    } else if (event->key() == Qt::Key_T) {     /// Toggle STAR and coding
         if (starOption->isChecked()) {
             generalOption->setChecked(true);
         }
         else {
             starOption->setChecked(true);
         }
+    } else if (event->key() == Qt::Key_A) {     /// Add current transcribed text into the last prompt and send it again
+        QString last = promptTextBox->toPlainText();
+        last += ". ";
+        last += highlightTableWidget->getLastRowString();
+        highlightTableWidget->clearRow();
+        highlightTableWidget->addText(last);
+        sendText();
+    } else if (event->key() == Qt::Key_R) {     /// Re-send again the same text from prompt box.
+        sendText(true);
     }
 
     // Call the base class implementation to handle other key events
     QMainWindow::keyPressEvent(event);
 }
 
-void HyniWindow::sendText() {
+void HyniWindow::sendText(bool repeat) {
 
-    const QString text = highlightTableWidget->getLastRowString();
+    QString text = highlightTableWidget->getLastRowString();
+
+    if (repeat) {
+        text = promptTextBox->toPlainText(); // Repeat sending the prompt
+    }
 
     if (websocket && websocket->isValid() && !text.isEmpty()) {
         // Create a JSON object with the highlighted text
