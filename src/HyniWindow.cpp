@@ -112,32 +112,62 @@ HyniWindow::HyniWindow(QWidget *parent)
 
 HyniWindow::~HyniWindow() {
     reconnectTimer->stop();
-    io_context->stop();
-    if (io_thread.joinable()) {
-        io_thread.join();
+    reconnectTimer.reset();
+
+    if (websocketClient) {
+        websocketClient->shutdown(); // Your existing method
+        websocketClient.reset();
     }
+
+    if (io_context) {
+        io_context->stop(); // Signal stop to ASIO
+
+        if (io_thread.joinable()) {
+            // Give 500ms for graceful shutdown
+            for (int i = 0; i < 50; ++i) {
+                if (!io_thread.joinable()) break;
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+
+            if (io_thread.joinable()) {
+                // Last resort
+                io_context.reset(); // Destroy io_context first
+                io_thread.detach();
+            }
+        }
+    }
+
     if (m_apiThread) {
+        // 1. Signal shutdown
         m_apiThread->quit();
-        m_apiThread->wait();
+
+        // 2. Non-blocking worker cleanup
+        m_apiWorker->deleteLater();
+
+        // 3. Wait with timeout
+        if (!m_apiThread->wait(500)) {
+            qWarning() << "API thread not responding, terminating";
+            m_apiThread->terminate();
+            m_apiThread->wait();
+        }
+
+        // 4. Now safe to delete thread
+        delete m_apiThread;
+        m_apiThread = nullptr;
     }
 }
 
 void HyniWindow::setupAPIWorker() {
     m_apiThread = new QThread(this);
-    m_apiWorker = new ChatAPIWorker();
+    m_apiWorker = new ChatAPIWorker(); // No parent!
 
-    // Move worker to thread
     m_apiWorker->moveToThread(m_apiThread);
 
-    // Connect signals
-    connect(m_apiWorker, &ChatAPIWorker::responseReceived,
-            this, &HyniWindow::handleAPIResponse);
-    connect(m_apiWorker, &ChatAPIWorker::errorOccurred,
-            this, &HyniWindow::handleAPIError);
-
-    // Cleanup
+    // Automatic cleanup connections
     connect(m_apiThread, &QThread::finished,
             m_apiWorker, &QObject::deleteLater);
+    connect(m_apiThread, &QThread::finished,
+            m_apiThread, &QObject::deleteLater);
 
     m_apiThread->start();
 }

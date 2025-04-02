@@ -2,6 +2,7 @@
 #include "config.h"
 #include <QDebug>
 #include <exception>
+#include <qthread.h>
 
 ChatAPIWorker::ChatAPIWorker(QObject *parent)
     : QObject(parent),
@@ -12,6 +13,18 @@ ChatAPIWorker::ChatAPIWorker(QObject *parent)
     } catch (const std::exception& e) {
         qCritical() << "API init failed:" << e.what();
         emit errorOccurred(QString("API initialization failed: %1").arg(e.what()));
+    }
+}
+
+ChatAPIWorker::~ChatAPIWorker() {
+    if (QThread::currentThread() == this->thread()) {
+        // Direct deletion if already in correct thread
+        m_chatAPI.reset();
+    } else {
+        // Non-blocking deferred deletion
+        QMetaObject::invokeMethod(this, [this]() {
+            m_chatAPI.reset();
+        }, Qt::QueuedConnection);
     }
 }
 

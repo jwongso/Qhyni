@@ -11,7 +11,7 @@ class ChatAPIWorker : public QObject {
 
 public:
     explicit ChatAPIWorker(QObject *parent = nullptr);
-    ~ChatAPIWorker() {}
+    ~ChatAPIWorker();
 
 public slots:
     void sendRequest(const QString& message, bool isStarQuestion);
