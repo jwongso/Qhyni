@@ -1,19 +1,17 @@
 #include "HyniWindow.h"
-#include <QSplitter>
-#include <QTextEdit>
-#include <QPushButton>
-#include <QVBoxLayout>
-#include <QGridLayout>
+#include "ChatAPIWorker.h"
+#include <QTimer>
+#include <QThread>
+#include <QMessageBox>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QStatusBar>
-#include <QGroupBox>
-#include <QRadioButton>
+#include <QDebug>
+#include <qapplication.h>
+#include <qevent.h>
 
 HyniWindow::HyniWindow(QWidget *parent)
-: QMainWindow(parent)
-, websocket(new QWebSocket)
-, reconnectTimer(new QTimer(this))
+    : QMainWindow(parent), reconnectTimer(std::make_unique<QTimer>(this)),
+    io_context(std::make_unique<boost::asio::io_context>())
 {
     setWindowTitle("Hyni - Real-time Transcription");
     resize(800, 500);
@@ -78,23 +76,80 @@ HyniWindow::HyniWindow(QWidget *parent)
 
     setCentralWidget(centralWidget);
 
-    // WebSocket connection
-    connect(websocket, &QWebSocket::connected, this, &HyniWindow::onConnected);
-    connect(websocket, &QWebSocket::disconnected, this, &HyniWindow::onDisconnected);
-    connect(websocket, &QWebSocket::textMessageReceived, this, &HyniWindow::onMessageReceived);
-    connect(websocket, QOverload<QAbstractSocket::SocketError>::of(&QWebSocket::error), this, &HyniWindow::onError);
+    // Initialize WebSocket client
+    websocketClient = std::make_shared<HyniWebSocketClient>(*io_context, "localhost", "8080");
+    websocketClient->setMessageHandler([this](const std::string& message) {
+        QMetaObject::invokeMethod(this, [this, message]() {
+            onMessageReceived(message);
+        });
+    });
+    websocketClient->setConnectionHandler([this](bool connected) {
+        QMetaObject::invokeMethod(this, [this, connected]() {
+            onWebSocketConnected(connected);
+        });
+    });
+    websocketClient->setErrorHandler([this](const std::string& error) {
+        QMetaObject::invokeMethod(this, [this, error]() {
+            onWebSocketError(error);
+        });
+    });
+
+    // Start IO context in a separate thread
+    io_thread = std::thread([this]() {
+        boost::asio::executor_work_guard<boost::asio::io_context::executor_type> work_guard(io_context->get_executor());
+        io_context->run();
+    });
 
     // Reconnect logic
-    connect(reconnectTimer, &QTimer::timeout, this, &HyniWindow::attemptReconnect);
+    connect(reconnectTimer.get(), &QTimer::timeout, this, &HyniWindow::attemptReconnect);
     reconnectTimer->start(3000); // Try reconnecting every 3 seconds
 
     attemptReconnect(); // Try initial connection
     statusBar()->showMessage("Disconnected");
+
+    setupAPIWorker();
 }
 
 HyniWindow::~HyniWindow() {
-    delete websocket;
-    delete reconnectTimer;
+    reconnectTimer->stop();
+    io_context->stop();
+    if (io_thread.joinable()) {
+        io_thread.join();
+    }
+    if (m_apiThread) {
+        m_apiThread->quit();
+        m_apiThread->wait();
+    }
+}
+
+void HyniWindow::setupAPIWorker() {
+    m_apiThread = new QThread(this);
+    m_apiWorker = new ChatAPIWorker();
+
+    // Move worker to thread
+    m_apiWorker->moveToThread(m_apiThread);
+
+    // Connect signals
+    connect(m_apiWorker, &ChatAPIWorker::responseReceived,
+            this, &HyniWindow::handleAPIResponse);
+    connect(m_apiWorker, &ChatAPIWorker::errorOccurred,
+            this, &HyniWindow::handleAPIError);
+
+    // Cleanup
+    connect(m_apiThread, &QThread::finished,
+            m_apiWorker, &QObject::deleteLater);
+
+    m_apiThread->start();
+}
+
+void HyniWindow::handleAPIResponse(const QString& response) {
+    responseBox->setMarkdown(response);
+    statusBar()->showMessage("Response received", 3000);
+}
+
+void HyniWindow::handleAPIError(const QString& error) {
+    QMessageBox::warning(this, "API Error", error);
+    statusBar()->showMessage(error, 5000);
 }
 
 void HyniWindow::keyPressEvent(QKeyEvent* event) {
@@ -127,100 +182,74 @@ void HyniWindow::keyPressEvent(QKeyEvent* event) {
 void HyniWindow::sendText(bool repeat) {
 
     QString text = highlightTableWidget->getLastRowString();
-
     if (repeat) {
-        text = promptTextBox->toPlainText(); // Repeat sending the prompt
+        text = promptTextBox->toPlainText();
     }
 
-    if (websocket && websocket->isValid() && !text.isEmpty()) {
-        // Create a JSON object with the highlighted text
-        QJsonObject prompt_message;
-        prompt_message["type"] = "prompt";
-        prompt_message["content"] = text;
-        prompt_message["star"] = starOption->isChecked();
+    if (text.isEmpty()) return;
 
-        // Convert the JSON object to a JSON document
-        QJsonDocument jsonDocument(prompt_message);
+    promptTextBox->setText(text);
+    highlightTableWidget->setRowCount(0);
 
-        // Convert the JSON document to a compact string
-        QString jsonString = jsonDocument.toJson(QJsonDocument::Compact);
+    responseBox->setPlainText("Processing...");
+    QApplication::processEvents();
 
-        // Send the JSON string over the WebSocket
-        websocket->sendTextMessage(jsonString);
-
-        // Display the highlighted text in promptTextBox
-        promptTextBox->setText(text);
-
-        highlightTableWidget->setRowCount(0);
-    } else {
-        qDebug() << "WebSocket is not valid or not connected.";
-    }
+    // Queue the request
+    QMetaObject::invokeMethod(m_apiWorker, "sendRequest",
+                              Qt::QueuedConnection,
+                              Q_ARG(QString, text),
+                              Q_ARG(bool, starOption->isChecked()));
 }
 
 void HyniWindow::handleHighlightedText(const QString& texts) {
     highlightedText = texts;
 }
 
-void HyniWindow::onConnected() {
-    statusBar()->showMessage("Connected to WebSocket server.");
-    reconnectTimer->stop();
+void HyniWindow::onWebSocketConnected(bool connected) {
+    if (connected) {
+        statusBar()->showMessage("Connected to WebSocket server.");
+        reconnectTimer->stop();
+    } else {
+        statusBar()->showMessage("Disconnected. Attempting to reconnect...");
+        reconnectTimer->start(3000); // Start trying to reconnect
+    }
 }
 
-void HyniWindow::onDisconnected() {
-    statusBar()->showMessage("Disconnected. Attempting to reconnect...");
-    reconnectTimer->start(3000); // Start trying to reconnect
+void HyniWindow::onWebSocketError(const std::string& error) {
+    statusBar()->showMessage(QString::fromStdString("WebSocket error: " + error));
 }
 
 void HyniWindow::attemptReconnect() {
-    if (websocket->state() == QAbstractSocket::UnconnectedState) {
+    if (!websocketClient->isConnected()) {
         statusBar()->showMessage("Trying to reconnect...");
-        websocket->open(QUrl("ws://localhost:8080"));
-
-        // Exponential backoff (e.g., 3s, 6s, 12s, ...)
-        static int retryInterval = 3000;
-        reconnectTimer->start(retryInterval);
-        retryInterval = qMin(retryInterval * 2, 30000); // Cap at 30 seconds
+        websocketClient->connect();
     }
 }
 
-void HyniWindow::onError(QAbstractSocket::SocketError error) {
-    statusBar()->showMessage("WebSocket error: " + websocket->errorString());
-}
+void HyniWindow::onMessageReceived(const std::string& message) {
+    qDebug() << "Message Received:" << QString::fromStdString(message);
 
-void HyniWindow::onMessageReceived(const QString& message) {
-    qDebug() << "Message Received:" << message;
+    try {
+        auto json = nlohmann::json::parse(message);
 
-    // Parse the incoming message as JSON
-    QJsonDocument jsonDocument = QJsonDocument::fromJson(message.toUtf8());
-    if (jsonDocument.isNull() || !jsonDocument.isObject()) {
-        qDebug() << "Invalid JSON message received.";
-        return;
-    }
+        // Check the message type
+        if (json.contains("type")) {
+            std::string type = json["type"];
 
-    QJsonObject jsonObject = jsonDocument.object();
+            if (type == "transcribe") {
+                // Handle transcribe messages
+                std::string content = json["content"];
+                qDebug() << "Transcribe Content:" << QString::fromStdString(content);
 
-    // Check the message type
-    if (jsonObject.contains("type")) {
-        QString type = jsonObject["type"].toString();
-
-        if (type == "response") {
-            // Handle response messages
-            QString content = jsonObject["content"].toString();
-            qDebug() << "Response Content:" << content;
-
-            // Display the response in promptTextBox
-            responseBox->setMarkdown(content);
-        } else if (type == "transcribe") {
-            // Handle transcribe messages
-            QString content = jsonObject["content"].toString();
-            qDebug() << "Transcribe Content:" << content;
-
-            // Add the transcribed text to the HighlightTableWidget
-            highlightTableWidget->addText(content);
+                // Add the transcribed text to the HighlightTableWidget
+                highlightTableWidget->addText(QString::fromStdString(content));
+            } else {
+                qDebug() << "Unknown message type received:" << QString::fromStdString(type);
+            }
         } else {
-            qDebug() << "Unknown message type received:" << type;
+            qDebug() << "Message does not contain a 'type' field.";
         }
-    } else {
-        qDebug() << "Message does not contain a 'type' field.";
+    } catch (const std::exception& e) {
+        qDebug() << "Invalid JSON message received:" << e.what();
     }
 }

@@ -1,44 +1,59 @@
-#ifndef HYNIWINDOW_H
-#define HYNIWINDOW_H
+#ifndef HYNI_WINDOW_H
+#define HYNI_WINDOW_H
 
 #include <QMainWindow>
-#include <QWebSocket>
-#include <QKeyEvent>
-#include <QTimer>
+#include <QSplitter>
+#include <QTextEdit>
+#include <QPushButton>
+#include <QVBoxLayout>
+#include <QGridLayout>
+#include <QStatusBar>
+#include <QGroupBox>
+#include <QRadioButton>
+#include <boost/asio.hpp>
+#include "websocket_client.h"
 #include "HighlightTableWidget.h"
 
-class QWebSocket;
-class QTextEdit;
-class QRadioButton;
+class ChatAPIWorker;
 
 class HyniWindow : public QMainWindow {
     Q_OBJECT
 
 public:
-    explicit HyniWindow(QWidget *parent = nullptr);
-    virtual ~HyniWindow();
-
-private slots:
-    void handleHighlightedText(const QString& text);
-    void onConnected();
-    void onDisconnected();
-    void attemptReconnect();
-    void onMessageReceived(const QString &message);
-    void onError(QAbstractSocket::SocketError error);
-    void sendText(bool repeat = false);
+    HyniWindow(QWidget *parent = nullptr);
+    ~HyniWindow();
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
 
+private slots:
+    void sendText(bool repeat = false);
+    void handleHighlightedText(const QString& texts);
+    void onMessageReceived(const std::string& message);
+    void onWebSocketConnected(bool connected);
+    void onWebSocketError(const std::string& error);
+    void handleAPIResponse(const QString& response);
+    void handleAPIError(const QString& error);
+
 private:
-    QWebSocket *websocket;
-    HighlightTableWidget *highlightTableWidget;
-    QTextEdit *promptTextBox;
-    QTextEdit *responseBox;
-    QTimer *reconnectTimer;
+    void attemptReconnect();
+    void setupAPIWorker();
+    std::string sendToChatAPI(const QString& text, bool isStarQuestion);
+
+    HighlightTableWidget* highlightTableWidget;
+    QTextEdit* promptTextBox;
+    QTextEdit* responseBox;
+    QRadioButton* starOption;
+    QRadioButton* generalOption;
     QString highlightedText;
-    QRadioButton *starOption;
-    QRadioButton *generalOption;
+
+    std::unique_ptr<QTimer> reconnectTimer;
+    std::unique_ptr<boost::asio::io_context> io_context;
+    std::shared_ptr<HyniWebSocketClient> websocketClient;
+    std::thread io_thread;
+
+    QThread* m_apiThread;
+    ChatAPIWorker* m_apiWorker;
 };
 
-#endif // HYNIWINDOW_H
+#endif
