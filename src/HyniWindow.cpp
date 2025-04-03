@@ -236,7 +236,10 @@ void HyniWindow::sendText(bool repeat) {
 
     QString text = highlightTableWidget->getLastRowString();
     if (repeat) {
+        QString last(text);
         text = promptTextBox->toPlainText();
+        text += ". ";
+        text += last;
     }
 
     if (text.isEmpty()) return;
