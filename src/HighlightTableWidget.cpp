@@ -58,7 +58,12 @@ void HighlightTableWidget::addText(const QString& text) {
     const QString base = getLastRowString();
 
     if (!base.isEmpty()) {
-        std::string mergedText = hyni::response_utils::merge_strings(base.toStdString(), text.toStdString());
+        int matchIndex;
+        std::string mergedText = hyni::response_utils::merge_strings(base.toStdString(),
+                                                                     text.toStdString(),
+                                                                     matchIndex);
+
+        qDebug() << "match index: " << matchIndex;
         QTableWidgetItem *obj = item(rowCount() - 1, 0);
         if (obj) {
             obj->setText(QString::fromStdString(mergedText));

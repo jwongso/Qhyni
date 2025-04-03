@@ -12,8 +12,8 @@ HyniWindow::HyniWindow(QWidget *parent)
     : QMainWindow(parent), reconnectTimer(std::make_unique<QTimer>(this)),
     io_context(std::make_unique<boost::asio::io_context>())
 {
-    setWindowTitle("Hyni - Real-time Transcription");
-    resize(800, 500);
+    setWindowTitle("Qhyni - hyni UI with gen AI and real-time transcription");
+    resize(900, 600);
     setFocusPolicy(Qt::StrongFocus);
     setFocus();
 
@@ -200,6 +200,9 @@ void HyniWindow::handleNeedAPIKey() {
     if (ok && !userKey.isEmpty()) {
         m_apiWorker->setAPIKey(userKey);
     }
+    else {
+        statusBar()->showMessage("No API-Key available.");
+    }
 }
 
 void HyniWindow::keyPressEvent(QKeyEvent* event) {
@@ -257,7 +260,7 @@ void HyniWindow::handleHighlightedText(const QString& texts) {
 
 void HyniWindow::onWebSocketConnected(bool connected) {
     if (connected) {
-        statusBar()->showMessage("Connected to WebSocket server.");
+        statusBar()->showMessage("Connected to wstream server.");
         reconnectTimer->stop();
     } else {
         statusBar()->showMessage("Disconnected. Attempting to reconnect...");
