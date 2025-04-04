@@ -11,7 +11,7 @@ ChatAPIWorker::ChatAPIWorker(QObject *parent)
     m_isBusy(false),
     m_cancelRequested(false) {
     try {
-        m_chatAPI = std::make_unique<hyni::chat_api>(hyni::GPT_API_URL);
+        m_chatAPI = std::make_unique<hyni::chat_api>(hyni::DS_API_URL);
         if (!m_chatAPI->has_api_key()) {
             QTimer::singleShot(2000, [this]() {
                 emit needApiKey();
