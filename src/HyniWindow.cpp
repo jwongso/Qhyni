@@ -7,6 +7,8 @@
 #include <QDebug>
 #include <qapplication.h>
 #include <qevent.h>
+#include <QProcess>
+#include <QFile>
 
 HyniWindow::HyniWindow(QWidget *parent)
     : QMainWindow(parent), reconnectTimer(std::make_unique<QTimer>(this)),
@@ -226,10 +228,41 @@ void HyniWindow::keyPressEvent(QKeyEvent* event) {
         sendText();
     } else if (event->key() == Qt::Key_R) {     /// Re-send again the same text from prompt box.
         sendText(true);
+    } else if (event->key() == Qt::Key_P) {     /// Photo: Take screenshot after 3 seconds
+        QTimer::singleShot(3000, this, SLOT(captureScreen()));
     }
 
     // Call the base class implementation to handle other key events
     QMainWindow::keyPressEvent(event);
+}
+
+void HyniWindow::captureScreen() {
+    QString savePath = "test.png";
+    QStringList args = {"-a", "-b", "--nonotify", "-o", savePath};
+
+    QProcess spectacle;
+    spectacle.start("spectacle", args);
+
+    if (spectacle.waitForFinished(3000)) {  // Wait up to 3 seconds
+        if (!QFile::exists(savePath)) {
+            qDebug() << "Error: File not found at" << savePath;
+            return;
+        }
+
+        QPixmap screenshot;
+        if (!screenshot.load(savePath)) {
+            qDebug() << "Error: Failed to load image from" << savePath;
+            return;
+        }
+
+        responseBox->setPlainText("Processing...");
+        QApplication::processEvents();
+
+        // Queue the request
+        QMetaObject::invokeMethod(m_apiWorker, "sendImageRequest",
+                                  Qt::QueuedConnection,
+                                  Q_ARG(QPixmap, screenshot));
+    }
 }
 
 void HyniWindow::sendText(bool repeat) {

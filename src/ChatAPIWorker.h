@@ -15,6 +15,7 @@ public:
     hyni::chat_api::API_PROVIDER getProvider() const;
 
 public slots:
+    void sendImageRequest(const QPixmap& pixmap);
     void sendRequest(const QString& message, bool isStarQuestion);
     void cancelCurrentRequest();
     void setAPIKey(const QString& apiKey);

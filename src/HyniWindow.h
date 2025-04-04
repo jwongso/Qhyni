@@ -35,6 +35,7 @@ private slots:
     void handleAPIResponse(const QString& response);
     void handleAPIError(const QString& error);
     void handleNeedAPIKey();
+    void captureScreen();
 
 private:
     void attemptReconnect();

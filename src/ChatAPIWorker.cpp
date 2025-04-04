@@ -4,7 +4,22 @@
 #include <QTimer>
 #include <QDebug>
 #include <exception>
+#include <qimage.h>
+#include <qpixmap.h>
 #include <qthread.h>
+#include <QBuffer>
+
+std::string encodePixmapToBase64(const QPixmap& pixmap, const char* format = "PNG", int quality = 90) {
+    QByteArray byteArray;
+    QBuffer buffer(&byteArray);
+    buffer.open(QIODevice::WriteOnly);
+
+    if (!pixmap.save(&buffer, format, quality)) {
+        throw std::runtime_error("Failed to save QPixmap to buffer.");
+    }
+
+    return byteArray.toBase64().toStdString();
+}
 
 ChatAPIWorker::ChatAPIWorker(QObject *parent)
     : QObject(parent),
@@ -39,6 +54,53 @@ hyni::chat_api::API_PROVIDER ChatAPIWorker::getProvider() const {
     return m_chatAPI ? m_chatAPI->get_api_provider() :
         hyni::chat_api::API_PROVIDER::Unknown;
 }
+
+void ChatAPIWorker::sendImageRequest(const QPixmap& pixmap) {
+    // Early return if busy (thread-safe)
+    if (m_isBusy.exchange(true)) {
+        qDebug() << "Image request ignored - worker busy";
+        return;
+    }
+
+    m_cancelRequested.store(false); // Reset cancellation flag
+
+    try {
+        // Encode QPixmap to base64 JPEG
+        const std::string base64Image = encodePixmapToBase64(pixmap, "PNG", 90);
+
+        // Single cancellation check point
+        const bool wasCancelled = [&]() {
+            if (m_cancelRequested.load()) return true;
+
+            auto response = m_chatAPI->send_image(
+                base64Image,
+                "Please solve the question in this image.",
+                1500,
+                0.7,
+                [this]() { return m_cancelRequested.load(); }
+                );
+
+            if (m_cancelRequested.load()) return true;
+
+            response = m_chatAPI->get_assistant_reply(response);
+            emit responseReceived(QString::fromStdString(response));
+            return false;
+        }();
+
+        if (wasCancelled) {
+            emit requestCancelled();
+        }
+    }
+    catch (const std::exception& e) {
+        if (!m_cancelRequested.load()) {
+            qWarning() << "Image API error:" << e.what();
+            emit errorOccurred(QString("Image API request failed: %1").arg(e.what()));
+        }
+    }
+
+    m_isBusy.store(false); // Reset busy flag
+}
+
 
 void ChatAPIWorker::sendRequest(const QString& message, bool isStarQuestion) {
     // Early return if busy (thread-safe)
