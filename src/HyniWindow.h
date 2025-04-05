@@ -10,6 +10,7 @@
 #include <QStatusBar>
 #include <QGroupBox>
 #include <QRadioButton>
+#include <QMap>
 #include <boost/asio.hpp>
 #include "PngMonitor.h"
 #include "websocket_client.h"
@@ -33,31 +34,38 @@ private slots:
     void onMessageReceived(const std::string& message);
     void onWebSocketConnected(bool connected);
     void onWebSocketError(const std::string& error);
-    void handleAPIResponse(const QString& response);
-    void handleAPIError(const QString& error);
-    void handleNeedAPIKey();
+    void handleAPIResponse(const QString& response, const QString& language);
+    void handleAPIError(const QString& error, const QString& language);
+    void handleNeedAPIKey(const QString& language);
     void captureScreen();
     void handleCapturedScreen(const QPixmap& pixmap);
 
 private:
     void attemptReconnect();
-    void setupAPIWorker();
+    void setupAPIWorkers();
+    void addResponseTab(const QString& language);
+    void cleanupAPIWorkers();
     std::string sendToChatAPI(const QString& text, bool isStarQuestion);
 
     HighlightTableWidget* highlightTableWidget;
     QTextEdit* promptTextBox;
-    QTextEdit* responseBox;
     QRadioButton* starOption;
     QRadioButton* generalOption;
     QString highlightedText;
+    QTabWidget *tabWidget;
+
+    QString m_sharedApiKey;
+    bool m_apiKeyRequested{false};
+
+    QMap<QString, QTextEdit*> responseEditors;
+    QMap<QString, ChatAPIWorker*> workers;
+    QMap<QString, QThread*> threads;
 
     std::unique_ptr<QTimer> reconnectTimer;
     std::unique_ptr<boost::asio::io_context> io_context;
     std::shared_ptr<hyni_websocket_client> websocketClient;
     std::thread io_thread;
 
-    QThread* m_apiThread;
-    ChatAPIWorker* m_apiWorker;
     PngMonitor m_png_monitor;
 };
 

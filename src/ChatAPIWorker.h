@@ -13,6 +13,7 @@ public:
     explicit ChatAPIWorker(QObject *parent = nullptr);
     ~ChatAPIWorker();
     hyni::chat_api::API_PROVIDER getProvider() const;
+    void setLanguage(const QString& language);
 
 public slots:
     void sendImageRequest(const QPixmap& pixmap);
@@ -30,6 +31,7 @@ private:
     std::unique_ptr<hyni::chat_api> m_chatAPI;
     std::atomic<bool> m_isBusy{false};
     std::atomic<bool> m_cancelRequested{false};
+    QString m_language;
 };
 
 #endif // CHATAPI_WORKER_H

@@ -55,10 +55,19 @@ hyni::chat_api::API_PROVIDER ChatAPIWorker::getProvider() const {
         hyni::chat_api::API_PROVIDER::Unknown;
 }
 
+void ChatAPIWorker::setLanguage(const QString& language) {
+    m_language = language;
+}
+
 void ChatAPIWorker::sendImageRequest(const QPixmap& pixmap) {
     // Early return if busy (thread-safe)
     if (m_isBusy.exchange(true)) {
         qDebug() << "Image request ignored - worker busy";
+        return;
+    }
+
+    if (!m_chatAPI->has_api_key()) {
+        emit needApiKey(); // This will trigger the shared handler
         return;
     }
 
@@ -72,9 +81,12 @@ void ChatAPIWorker::sendImageRequest(const QPixmap& pixmap) {
         const bool wasCancelled = [&]() {
             if (m_cancelRequested.load()) return true;
 
+            QString enhancedPrompt = QString("If this involves coding, please implement it in %1.")
+                .arg(m_language);
+
             auto response = m_chatAPI->send_image(
                 base64Image,
-                "Please solve the question in this image. Use C++ if it's a coding question",
+                enhancedPrompt.toStdString(),
                 1500,
                 0.7,
                 [this]() { return m_cancelRequested.load(); }
@@ -106,6 +118,11 @@ void ChatAPIWorker::sendRequest(const QString& message, bool isStarQuestion) {
     // Early return if busy (thread-safe)
     if (m_isBusy.exchange(true)) {
         qDebug() << "Request ignored - worker busy";
+        return;
+    }
+
+    if (!m_chatAPI->has_api_key()) {
+        emit needApiKey(); // This will trigger the shared handler
         return;
     }
 
