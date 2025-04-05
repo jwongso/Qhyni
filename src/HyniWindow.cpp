@@ -12,7 +12,8 @@
 
 HyniWindow::HyniWindow(QWidget *parent)
     : QMainWindow(parent), reconnectTimer(std::make_unique<QTimer>(this)),
-    io_context(std::make_unique<boost::asio::io_context>())
+    io_context(std::make_unique<boost::asio::io_context>()),
+    m_png_monitor("/home/jwongso/Dropbox/BabaYaga")
 {
     setWindowTitle("Qhyni - hyni UI with gen AI and real-time transcription");
     resize(900, 600);
@@ -109,6 +110,8 @@ HyniWindow::HyniWindow(QWidget *parent)
     statusBar()->showMessage("Disconnected");
 
     setupAPIWorker();
+
+    connect(&m_png_monitor, &PngMonitor::sendImage, this, &HyniWindow::handleCapturedScreen);
 }
 
 HyniWindow::~HyniWindow() {
@@ -263,6 +266,15 @@ void HyniWindow::captureScreen() {
                                   Qt::QueuedConnection,
                                   Q_ARG(QPixmap, screenshot));
     }
+}
+
+void HyniWindow::handleCapturedScreen(const QPixmap& pixmap) {
+    responseBox->setPlainText("Processing...");
+    QApplication::processEvents();
+    // Queue the request
+    QMetaObject::invokeMethod(m_apiWorker, "sendImageRequest",
+                              Qt::QueuedConnection,
+                              Q_ARG(QPixmap, pixmap));
 }
 
 void HyniWindow::sendText(bool repeat) {

@@ -108,6 +108,7 @@ set(UI_HEADERS
     src/HyniWindow.h
     src/HighlightTableWidget.h
     src/ChatAPIWorker.h
+    src/PngMonitor.h
 )
 
 qt_add_executable(${PROJECT_NAME} ${UI_SOURCES} ${UI_HEADERS})

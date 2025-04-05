@@ -11,6 +11,7 @@
 #include <QGroupBox>
 #include <QRadioButton>
 #include <boost/asio.hpp>
+#include "PngMonitor.h"
 #include "websocket_client.h"
 #include "HighlightTableWidget.h"
 
@@ -36,6 +37,7 @@ private slots:
     void handleAPIError(const QString& error);
     void handleNeedAPIKey();
     void captureScreen();
+    void handleCapturedScreen(const QPixmap& pixmap);
 
 private:
     void attemptReconnect();
@@ -56,6 +58,7 @@ private:
 
     QThread* m_apiThread;
     ChatAPIWorker* m_apiWorker;
+    PngMonitor m_png_monitor;
 };
 
 #endif

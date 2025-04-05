@@ -74,7 +74,7 @@ void ChatAPIWorker::sendImageRequest(const QPixmap& pixmap) {
 
             auto response = m_chatAPI->send_image(
                 base64Image,
-                "Please solve the question in this image.",
+                "Please solve the question in this image. Use C++ if it's a coding question",
                 1500,
                 0.7,
                 [this]() { return m_cancelRequested.load(); }
