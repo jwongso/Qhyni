@@ -17,7 +17,7 @@ public:
 
 public slots:
     void sendImageRequest(const QPixmap& pixmap);
-    void sendRequest(const QString& message, bool isStarQuestion);
+    void sendRequest(const QString& message, hyni::chat_api::QUESTION_TYPE type);
     void cancelCurrentRequest();
     void setAPIKey(const QString& apiKey);
 

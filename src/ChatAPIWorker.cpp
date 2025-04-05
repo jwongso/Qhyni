@@ -114,7 +114,7 @@ void ChatAPIWorker::sendImageRequest(const QPixmap& pixmap) {
 }
 
 
-void ChatAPIWorker::sendRequest(const QString& message, bool isStarQuestion) {
+void ChatAPIWorker::sendRequest(const QString& message, hyni::chat_api::QUESTION_TYPE type) {
     // Early return if busy (thread-safe)
     if (m_isBusy.exchange(true)) {
         qDebug() << "Request ignored - worker busy";
@@ -129,17 +129,13 @@ void ChatAPIWorker::sendRequest(const QString& message, bool isStarQuestion) {
     m_cancelRequested.store(false); // Reset cancellation flag
 
     try {
-        const auto questionType = isStarQuestion
-                                      ? hyni::chat_api::QUESTION_TYPE::AmazonBehavioral
-                                      : hyni::chat_api::QUESTION_TYPE::General;
-
         // Single cancellation check point
         const bool wasCancelled = [&]() {
             if (m_cancelRequested.load()) return true;
 
             auto response = m_chatAPI->send_message(
                 message.toStdString(),
-                questionType,
+                type,
                 1500,
                 0.7,
                 [this]() { return m_cancelRequested.load(); }

@@ -46,11 +46,14 @@ private:
     void addResponseTab(const QString& language);
     void cleanupAPIWorkers();
     std::string sendToChatAPI(const QString& text, bool isStarQuestion);
+    void toggleQuestionType();
+    void handleTabNavigation(QKeyEvent* event);
 
     HighlightTableWidget* highlightTableWidget;
     QTextEdit* promptTextBox;
-    QRadioButton* starOption;
-    QRadioButton* generalOption;
+    QRadioButton* amazonStarOption;
+    QRadioButton* systemDesignOption;
+    QRadioButton* codingOption;
     QString highlightedText;
     QTabWidget *tabWidget;
 

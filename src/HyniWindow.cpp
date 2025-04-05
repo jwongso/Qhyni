@@ -1,5 +1,6 @@
 #include "HyniWindow.h"
 #include "ChatAPIWorker.h"
+#include "config.h"
 #include <QTimer>
 #include <QThread>
 #include <QMessageBox>
@@ -45,12 +46,18 @@ HyniWindow::HyniWindow(QWidget *parent)
     QGroupBox *questionTypeBox = new QGroupBox(this);
     QHBoxLayout *questionTypeLayout = new QHBoxLayout(questionTypeBox);
 
-    starOption = new QRadioButton("STAR", this);
-    generalOption = new QRadioButton("General (Coding/System Design)", this);
-    generalOption->setChecked(true);  // Default selection
+    amazonStarOption = new QRadioButton("Amazon Behavioral (STAR)", this);
+    systemDesignOption = new QRadioButton("System Design", this);
+    codingOption = new QRadioButton("Coding", this);
+    codingOption->setChecked(true);  // Default selection
 
-    questionTypeLayout->addWidget(starOption);
-    questionTypeLayout->addWidget(generalOption);
+    amazonStarOption->setToolTip("Behavioral questions (STAR format)");
+    systemDesignOption->setToolTip("System architecture questions");
+    codingOption->setToolTip("Coding problems (multi-language)");
+
+    questionTypeLayout->addWidget(amazonStarOption);
+    questionTypeLayout->addWidget(systemDesignOption);
+    questionTypeLayout->addWidget(codingOption);
     questionTypeBox->setLayout(questionTypeLayout);
 
     leftLayout->addWidget(leftSplitter);
@@ -59,11 +66,11 @@ HyniWindow::HyniWindow(QWidget *parent)
     leftWidget->setLayout(leftLayout);
     splitter->addWidget(leftWidget);
 
-    // Right side: Tabs for GPT response and prompt text
+    // Right side: Tabs for multi-lang responses
     tabWidget = new QTabWidget(this);
-
-    addResponseTab("C++");
-    addResponseTab("Rust");
+    for (const auto& lang : hyni::PROG_LANGUAGES) {
+        addResponseTab(QString::fromStdString(lang));
+    }
 
     splitter->addWidget(tabWidget);
     splitter->setSizes({400, 400});
@@ -253,33 +260,61 @@ void HyniWindow::handleNeedAPIKey(const QString& language) {
     }
 }
 
+void HyniWindow::toggleQuestionType() {
+    if (amazonStarOption->isChecked()) {
+        systemDesignOption->setChecked(true);
+        statusBar()->showMessage("Mode: System Design", 2000);
+    }
+    else if (systemDesignOption->isChecked()) {
+        codingOption->setChecked(true);
+        statusBar()->showMessage("Mode: Coding", 2000);
+    }
+    else {
+        amazonStarOption->setChecked(true);
+        statusBar()->showMessage("Mode: Amazon Behavioral (STAR)", 2000);
+    }
+}
+
+void HyniWindow::handleTabNavigation(QKeyEvent* event) {
+    int direction = (event->key() == Qt::Key_Left) ? -1 : 1;
+    int newIndex = (tabWidget->currentIndex() + direction + tabWidget->count()) % tabWidget->count();
+
+    // Simple version:
+    tabWidget->setCurrentIndex(newIndex);
+}
+
 void HyniWindow::keyPressEvent(QKeyEvent* event) {
-    if (event->key() == Qt::Key_S) {            /// Send as prompt
+    switch(event->key()) {
+    case Qt::Key_Left:
+    case Qt::Key_Right:
+        handleTabNavigation(event);
+        return;
+    case Qt::Key_S:            // Send as prompt
         sendText();
-    } else if (event->key() == Qt::Key_C) {     /// Clear the transcribed text
+        break;
+    case Qt::Key_C:            // Clear transcribed text
         highlightTableWidget->clearRow();
-    } else if (event->key() == Qt::Key_T) {     /// Toggle STAR and coding
-        if (starOption->isChecked()) {
-            generalOption->setChecked(true);
-        }
-        else {
-            starOption->setChecked(true);
-        }
-    } else if (event->key() == Qt::Key_A) {     /// Add current transcribed text into the last prompt and send it again
+        break;
+    case Qt::Key_T:            // Toggle question types
+        toggleQuestionType();
+        break;
+    case Qt::Key_A: {          // Append and send
         QString last = promptTextBox->toPlainText();
-        last += ". ";
-        last += highlightTableWidget->getLastRowString();
+        last += ". " + highlightTableWidget->getLastRowString();
         highlightTableWidget->clearRow();
         highlightTableWidget->addText(last);
         sendText();
-    } else if (event->key() == Qt::Key_R) {     /// Re-send again the same text from prompt box.
-        sendText(true);
-    } else if (event->key() == Qt::Key_P) {     /// Photo: Take screenshot after 3 seconds
-        QTimer::singleShot(3000, this, SLOT(captureScreen()));
+        break;
     }
-
-    // Call the base class implementation to handle other key events
-    QMainWindow::keyPressEvent(event);
+    case Qt::Key_R:            // Resend
+        sendText(true);
+        break;
+    case Qt::Key_P:            // Screenshot
+        QTimer::singleShot(3000, this, &HyniWindow::captureScreen);
+        break;
+    default:
+        QMainWindow::keyPressEvent(event);
+    }
 }
 
 void HyniWindow::captureScreen() {
@@ -344,34 +379,65 @@ void HyniWindow::sendText(bool repeat) {
     promptTextBox->setText(text);
     highlightTableWidget->setRowCount(0);
 
+    hyni::chat_api::QUESTION_TYPE qType;
+    QString enhancedPrompt;
+    bool multiLanguage = true;
+
     // Set "Processing..." for relevant editors
-    if (starOption->isChecked()) {
+    if (amazonStarOption->isChecked()) {
         // STAR question - only first tab (C++)
+        qType = hyni::chat_api::QUESTION_TYPE::AmazonBehavioral;
+        responseEditors.first()->setPlainText("Processing...");
+        multiLanguage = false;
+    }
+    else if (systemDesignOption->isChecked()) {
+        qType = hyni::chat_api::QUESTION_TYPE::SystemDesign;
+        enhancedPrompt = QString("%1\n\nProvide a comprehensive system design solution including:\n"
+                                 "- Functional requirements\n"
+                                 "- Non-functional requirements\n"
+                                 "- High-level architecture diagram\n"
+                                 "- Data model\n"
+                                 "- Scaling considerations\n"
+                                 "- Potential bottlenecks and solutions")
+                             .arg(text);
+        multiLanguage = false;
+    }
+    else { // Coding option
+        qType = hyni::chat_api::QUESTION_TYPE::Coding;
+        multiLanguage = true;
+    }
+
+    if (!multiLanguage) {
         responseEditors.first()->setPlainText("Processing...");
     } else {
-        // General question - all tabs
         for (QTextEdit *editor : responseEditors.values()) {
             editor->setPlainText("Processing...");
         }
     }
     QApplication::processEvents();
 
-    // Queue the request to appropriate workers
-    if (starOption->isChecked()) {
-        // STAR question - only first worker (C++)
+    // Send requests
+    if (!multiLanguage) {
+        // For STAR and System Design (single response)
         QMetaObject::invokeMethod(workers.first(), "sendRequest",
                                   Qt::QueuedConnection,
-                                  Q_ARG(QString, text),
-                                  Q_ARG(bool, true)); // true for STAR
-    } else {
-        // General question - all workers
+                                  Q_ARG(QString, enhancedPrompt),
+                                  Q_ARG(hyni::chat_api::QUESTION_TYPE, qType));
+    }
+    else {
+        // For Coding (language-specific responses)
         for (const auto &[language, worker] : workers.asKeyValueRange()) {
-            QString enhancedPrompt = QString("%1. If this involves coding, please implement it in %2.")
-            .arg(text).arg(language);
+            QString langSpecificPrompt = QString("%1\n\nIf this is a coding question, please provide in %2:\n"
+                                                 "- Complete implementation\n"
+                                                 "- Time and space complexity\n"
+                                                 "- Alternative approaches\n"
+                                                 "- Edge cases considered")
+                                             .arg(text).arg(language);
+
             QMetaObject::invokeMethod(worker, "sendRequest",
                                       Qt::QueuedConnection,
-                                      Q_ARG(QString, enhancedPrompt),
-                                      Q_ARG(bool, false)); // false for general
+                                      Q_ARG(QString, langSpecificPrompt),
+                                      Q_ARG(hyni::chat_api::QUESTION_TYPE, qType));
         }
     }
 }
