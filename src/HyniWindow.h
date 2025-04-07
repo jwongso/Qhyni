@@ -15,6 +15,9 @@
 #include "PngMonitor.h"
 #include "websocket_client.h"
 #include "HighlightTableWidget.h"
+#ifdef ENABLE_AUDIO_STREAM
+#include "AudioStreamer.h"
+#endif
 
 class ChatAPIWorker;
 
@@ -39,6 +42,7 @@ private slots:
     void handleNeedAPIKey(const QString& language);
     void captureScreen();
     void handleCapturedScreen(const QPixmap& pixmap);
+    void receiveAudioData(const QByteArray& data);
 
 private:
     void attemptReconnect();
@@ -71,6 +75,9 @@ private:
 
     PngMonitor m_png_monitor;
     QVector<QString> m_history;
+#ifdef ENABLE_AUDIO_STREAM
+    AudioStreamer m_streamer;
+#endif
 };
 
 #endif

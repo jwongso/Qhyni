@@ -87,8 +87,11 @@ HyniWindow::HyniWindow(QWidget *parent)
 
     setCentralWidget(centralWidget);
 
-    // Initialize WebSocket client
+#ifdef ENABLE_AUDIO_STREAM
+    websocketClient = std::make_shared<hyni_websocket_client>(*io_context, "localhost", "8765");
+#else
     websocketClient = std::make_shared<hyni_websocket_client>(*io_context, "localhost", "8080");
+#endif
     websocketClient->set_message_handler([this](const std::string& message) {
         QMetaObject::invokeMethod(this, [this, message]() {
             onMessageReceived(message);
@@ -121,6 +124,11 @@ HyniWindow::HyniWindow(QWidget *parent)
     setupAPIWorkers();
 
     connect(&m_png_monitor, &PngMonitor::sendImage, this, &HyniWindow::handleCapturedScreen);
+
+#ifdef ENABLE_AUDIO_STREAM
+    QObject::connect(&m_streamer, &AudioStreamer::audioDataReady, this, &HyniWindow::receiveAudioData);
+    m_streamer.startRecording();
+#endif
 }
 
 void HyniWindow::addResponseTab(const QString& language) {
@@ -133,6 +141,9 @@ void HyniWindow::addResponseTab(const QString& language) {
 }
 
 HyniWindow::~HyniWindow() {
+#ifdef ENABLE_AUDIO_STREAM
+    m_streamer.stopRecording();
+#endif
     reconnectTimer->stop();
     reconnectTimer.reset();
 
@@ -530,4 +541,9 @@ void HyniWindow::onMessageReceived(const std::string& message) {
     } catch (const std::exception& e) {
         qDebug() << "Invalid JSON message received:" << e.what();
     }
+}
+
+void HyniWindow::receiveAudioData(const QByteArray& data) {
+    std::vector<uint8_t> audioData(data.begin(), data.end());
+    websocketClient->sendAudioBuffer(audioData);
 }

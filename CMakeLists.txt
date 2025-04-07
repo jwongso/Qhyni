@@ -126,6 +126,7 @@ qt_add_executable(${PROJECT_NAME} ${UI_SOURCES} ${UI_HEADERS})
 
 if(ENABLE_AUDIO_STREAM)
     target_link_libraries(${PROJECT_NAME} PRIVATE hyni Qt6::Core Qt6::Gui Qt6::Widgets Qt6::WebSockets Qt6::Multimedia)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE ENABLE_AUDIO_STREAM)
 else()
     target_link_libraries(${PROJECT_NAME} PRIVATE hyni Qt6::Core Qt6::Gui Qt6::Widgets Qt6::WebSockets)
 endif()
