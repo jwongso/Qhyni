@@ -59,7 +59,7 @@ void ChatAPIWorker::setLanguage(const QString& language) {
     m_language = language;
 }
 
-void ChatAPIWorker::sendImageRequest(const QPixmap& pixmap) {
+void ChatAPIWorker::sendImageRequest(const QPixmap& pixmap, hyni::chat_api::QUESTION_TYPE type) {
     // Early return if busy (thread-safe)
     if (m_isBusy.exchange(true)) {
         qDebug() << "Image request ignored - worker busy";
@@ -81,8 +81,25 @@ void ChatAPIWorker::sendImageRequest(const QPixmap& pixmap) {
         const bool wasCancelled = [&]() {
             if (m_cancelRequested.load()) return true;
 
-            QString enhancedPrompt = QString("If this involves coding, please implement it in %1.")
+            QString enhancedPrompt;
+
+            if (type == hyni::chat_api::QUESTION_TYPE::Coding) {
+                enhancedPrompt = QString("If this involves coding, please implement it in %1.\n"
+                                             "- Complete implementation\n"
+                                             "- Time and space complexity\n"
+                                             "- Alternative approaches\n"
+                                             "- Edge cases considered\n"
+                                             "- Any theoritical pattern, insights or applicable approaches.\n")
                 .arg(m_language);
+            } else {
+                enhancedPrompt = QString("\n\nProvide a comprehensive system design solution including:\n"
+                                         "- Functional requirements\n"
+                                         "- Non-functional requirements\n"
+                                         "- High-level architecture diagram\n"
+                                         "- Data model\n"
+                                         "- Scaling considerations\n"
+                                         "- Anything that can bring plus points.\n");
+            }
 
             auto response = m_chatAPI->send_image(
                 base64Image,

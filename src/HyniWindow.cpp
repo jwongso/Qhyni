@@ -72,6 +72,9 @@ HyniWindow::HyniWindow(QWidget *parent)
         addResponseTab(QString::fromStdString(lang));
     }
 
+    // Add history
+    addResponseTab("History");
+
     splitter->addWidget(tabWidget);
     splitter->setSizes({400, 400});
     mainLayout->addWidget(splitter);
@@ -125,7 +128,7 @@ void HyniWindow::addResponseTab(const QString& language) {
     editor->setPlaceholderText(language + " Response");
     editor->setReadOnly(true);
 
-    tabWidget->addTab(editor, language + " Response");
+    tabWidget->addTab(editor, language);
     responseEditors[language] = editor;
 }
 
@@ -212,7 +215,22 @@ void HyniWindow::setupAPIWorkers() {
 void HyniWindow::handleAPIResponse(const QString& response, const QString& language) {
     if (responseEditors.contains(language)) {
         responseEditors[language]->setMarkdown(response);
+        m_history.push_back(response);
     }
+
+    if (responseEditors.contains("History")) {
+        QString history;
+        for (const auto& page : m_history) {
+            history += page;
+            history += "/pagebreak";
+            history += "\n\n\n";
+        }
+
+        if (!history.isEmpty()) {
+            responseEditors["History"]->setMarkdown(history);
+        }
+    }
+
     statusBar()->showMessage(language + " response received", 3000);
 }
 
@@ -330,8 +348,8 @@ void HyniWindow::captureScreen() {
             return;
         }
 
-        QPixmap screenshot;
-        if (!screenshot.load(savePath)) {
+        QPixmap pixmap;
+        if (!pixmap.load(savePath)) {
             qDebug() << "Error: Failed to load image from" << savePath;
             return;
         }
@@ -341,11 +359,20 @@ void HyniWindow::captureScreen() {
         }
         QApplication::processEvents();
 
-        // Send to all workers
-        for (const auto &[language, worker] : workers.asKeyValueRange()) {
-            QMetaObject::invokeMethod(workers[language], "sendImageRequest",
+        if (codingOption->isChecked()) {
+            // Send to all workers
+            for (const QString& language : workers.keys()) {
+                QMetaObject::invokeMethod(workers[language], "sendImageRequest",
+                                          Qt::QueuedConnection,
+                                          Q_ARG(QPixmap, pixmap),
+                                          Q_ARG(hyni::chat_api::QUESTION_TYPE, hyni::chat_api::QUESTION_TYPE::Coding));
+            }
+        }
+        else {
+            QMetaObject::invokeMethod(workers.first(), "sendImageRequest",
                                       Qt::QueuedConnection,
-                                      Q_ARG(QPixmap, screenshot));
+                                      Q_ARG(QPixmap, pixmap),
+                                      Q_ARG(hyni::chat_api::QUESTION_TYPE, hyni::chat_api::QUESTION_TYPE::SystemDesign));
         }
     }
 }
@@ -356,11 +383,20 @@ void HyniWindow::handleCapturedScreen(const QPixmap& pixmap) {
     }
     QApplication::processEvents();
 
-    // Send to all workers
-    for (const QString& language : workers.keys()) {
-        QMetaObject::invokeMethod(workers[language], "sendImageRequest",
+    if (codingOption->isChecked()) {
+        // Send to all workers
+        for (const QString& language : workers.keys()) {
+            QMetaObject::invokeMethod(workers[language], "sendImageRequest",
+                                      Qt::QueuedConnection,
+                                      Q_ARG(QPixmap, pixmap),
+                                      Q_ARG(hyni::chat_api::QUESTION_TYPE, hyni::chat_api::QUESTION_TYPE::Coding));
+        }
+    }
+    else {
+        QMetaObject::invokeMethod(workers.first(), "sendImageRequest",
                                   Qt::QueuedConnection,
-                                  Q_ARG(QPixmap, pixmap));
+                                  Q_ARG(QPixmap, pixmap),
+                                  Q_ARG(hyni::chat_api::QUESTION_TYPE, hyni::chat_api::QUESTION_TYPE::SystemDesign));
     }
 }
 
@@ -398,7 +434,8 @@ void HyniWindow::sendText(bool repeat) {
                                  "- High-level architecture diagram\n"
                                  "- Data model\n"
                                  "- Scaling considerations\n"
-                                 "- Potential bottlenecks and solutions")
+                                 "- Potential bottlenecks and solutions\n"
+                                 "- Anything that can bring plus points.\n")
                              .arg(text);
         multiLanguage = false;
     }
@@ -431,7 +468,8 @@ void HyniWindow::sendText(bool repeat) {
                                                  "- Complete implementation\n"
                                                  "- Time and space complexity\n"
                                                  "- Alternative approaches\n"
-                                                 "- Edge cases considered")
+                                                 "- Edge cases considered\n"
+                                                 "- Any theoritical pattern, insights or applicable approaches.\n")
                                              .arg(text).arg(language);
 
             QMetaObject::invokeMethod(worker, "sendRequest",

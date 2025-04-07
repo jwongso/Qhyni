@@ -70,6 +70,7 @@ private:
     std::thread io_thread;
 
     PngMonitor m_png_monitor;
+    QVector<QString> m_history;
 };
 
 #endif

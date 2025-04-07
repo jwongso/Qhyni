@@ -16,7 +16,7 @@ public:
     void setLanguage(const QString& language);
 
 public slots:
-    void sendImageRequest(const QPixmap& pixmap);
+    void sendImageRequest(const QPixmap& pixmap, hyni::chat_api::QUESTION_TYPE type);
     void sendRequest(const QString& message, hyni::chat_api::QUESTION_TYPE type);
     void cancelCurrentRequest();
     void setAPIKey(const QString& apiKey);
