@@ -222,8 +222,7 @@ void HyniWindow::handleAPIResponse(const QString& response, const QString& langu
         QString history;
         for (const auto& page : m_history) {
             history += page;
-            history += "/pagebreak";
-            history += "\n\n\n";
+            history += "\n---\n";
         }
 
         if (!history.isEmpty()) {
