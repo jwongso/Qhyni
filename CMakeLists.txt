@@ -5,8 +5,14 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 cmake_policy(SET CMP0167 OLD)
 
+option(ENABLE_AUDIO_STREAM "Enable audio streaming feature" ON)
+
 find_package(Boost REQUIRED COMPONENTS system)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets WebSockets)
+
+if(ENABLE_AUDIO_STREAM)
+    find_package(Qt6 REQUIRED COMPONENTS Multimedia)
+endif()
 
 find_program(CCACHE_FOUND ccache)
 if(CCACHE_FOUND)
@@ -111,9 +117,18 @@ set(UI_HEADERS
     src/PngMonitor.h
 )
 
+if(ENABLE_AUDIO_STREAM)
+    set(UI_HEADERS ${UI_HEADERS} src/AudioStreamer.h)
+    set(UI_SOURCES ${UI_SOURCES} src/AudioStreamer.cpp)
+endif()
+
 qt_add_executable(${PROJECT_NAME} ${UI_SOURCES} ${UI_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} PRIVATE hyni Qt6::Core Qt6::Gui Qt6::Widgets Qt6::WebSockets)
+if(ENABLE_AUDIO_STREAM)
+    target_link_libraries(${PROJECT_NAME} PRIVATE hyni Qt6::Core Qt6::Gui Qt6::Widgets Qt6::WebSockets Qt6::Multimedia)
+else()
+    target_link_libraries(${PROJECT_NAME} PRIVATE hyni Qt6::Core Qt6::Gui Qt6::Widgets Qt6::WebSockets)
+endif()
 
 if(TARGET hyni)
     # Ensure headers from hyni are included
