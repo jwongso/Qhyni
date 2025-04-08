@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 cmake_policy(SET CMP0167 OLD)
 
-option(ENABLE_AUDIO_STREAM "Enable audio streaming feature" ON)
+option(ENABLE_AUDIO_STREAM "Enable audio streaming feature" OFF)
 
 find_package(Boost REQUIRED COMPONENTS system)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets WebSockets)
