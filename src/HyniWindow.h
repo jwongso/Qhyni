@@ -43,6 +43,10 @@ private slots:
     void captureScreen();
     void handleCapturedScreen(const QPixmap& pixmap);
     void receiveAudioData(const QByteArray& data);
+    void onAISelectionChanged(QAction* action);
+    void zoomInResponseBox();
+    void zoomOutResponseBox();
+    void showAboutDialog();
 
 private:
     void attemptReconnect();
@@ -52,6 +56,7 @@ private:
     std::string sendToChatAPI(const QString& text, bool isStarQuestion);
     void toggleQuestionType();
     void handleTabNavigation(QKeyEvent* event);
+    void setupMenuBar(QMenuBar* menuBar);
 
     HighlightTableWidget* highlightTableWidget;
     QTextEdit* promptTextBox;

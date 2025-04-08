@@ -10,6 +10,8 @@
 #include <qevent.h>
 #include <QProcess>
 #include <QFile>
+#include <QMenuBar>
+#include <QActionGroup>
 
 HyniWindow::HyniWindow(QWidget *parent)
     : QMainWindow(parent), reconnectTimer(std::make_unique<QTimer>(this)),
@@ -17,6 +19,12 @@ HyniWindow::HyniWindow(QWidget *parent)
     m_png_monitor("/home/jwongso/Dropbox/BabaYaga")
 {
     setWindowTitle("Qhyni - hyni UI with gen AI and real-time transcription");
+
+    QMenuBar *menuBar = new QMenuBar(this);
+    menuBar->setNativeMenuBar(false);
+    setMenuBar(menuBar);
+    setupMenuBar(menuBar);
+
     resize(900, 600);
     setFocusPolicy(Qt::StrongFocus);
     setFocus();
@@ -192,6 +200,9 @@ void HyniWindow::cleanupAPIWorkers() {
 void HyniWindow::setupAPIWorkers() {
     // Setup workers for all languages
     for (const QString& language : responseEditors.keys()) {
+
+        if (language == "History") continue;
+
         QThread *thread = new QThread(this);
         ChatAPIWorker *worker = new ChatAPIWorker();
         worker->setLanguage(language);
@@ -227,13 +238,14 @@ void HyniWindow::handleAPIResponse(const QString& response, const QString& langu
     if (responseEditors.contains(language)) {
         responseEditors[language]->setMarkdown(response);
         m_history.push_back(response);
+        qDebug() << response;
     }
 
     if (responseEditors.contains("History")) {
         QString history;
         for (const auto& page : m_history) {
             history += page;
-            history += "\n---\n";
+            history += "\n\n---\n\n";
         }
 
         if (!history.isEmpty()) {
@@ -311,6 +323,97 @@ void HyniWindow::handleTabNavigation(QKeyEvent* event) {
     tabWidget->setCurrentIndex(newIndex);
 }
 
+void HyniWindow::setupMenuBar(QMenuBar* menuBar) {
+    QMenu *aiMenu = menuBar->addMenu("&AI");
+
+    // Create action group for AI selection
+    QActionGroup *aiGroup = new QActionGroup(this);
+    aiGroup->setExclusive(true);
+
+    // ChatGPT option
+    QAction *chatGPTAction = new QAction("&ChatGPT", this);
+    chatGPTAction->setCheckable(true);
+    chatGPTAction->setChecked(true);
+    chatGPTAction->setData("ChatGPT");
+    chatGPTAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_1));
+    aiGroup->addAction(chatGPTAction);
+    aiMenu->addAction(chatGPTAction);
+
+    // DeepSeek option
+    QAction *deepSeekAction = new QAction("&DeepSeek", this);
+    deepSeekAction->setCheckable(true);
+    deepSeekAction->setData("DeepSeek");
+    deepSeekAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_2));
+    aiGroup->addAction(deepSeekAction);
+    aiMenu->addAction(deepSeekAction);
+
+    // Add separator to visually group the exit action
+    aiMenu->addSeparator();
+
+    // Exit action
+    QAction *exitAction = new QAction("E&xit", this);
+    exitAction->setShortcut(QKeySequence::Quit);  // Standard quit shortcut (Ctrl+Q on most platforms)
+    aiMenu->addAction(exitAction);
+
+    QMenu *viewMenu = menuBar->addMenu("&View");
+    QAction *zoomInAction = viewMenu->addAction("Zoom &In");
+    zoomInAction->setShortcut(QKeySequence::ZoomIn);
+    QAction *zoomOutAction = viewMenu->addAction("Zoom &Out");
+    zoomOutAction->setShortcut(QKeySequence::ZoomOut);
+
+    QMenu *helpMenu = menuBar->addMenu("&Help");
+    QAction *aboutAction = helpMenu->addAction("&About");
+
+    // Connect signals
+    connect(aiGroup, &QActionGroup::triggered, this, &HyniWindow::onAISelectionChanged);
+    connect(exitAction, &QAction::triggered, this, &QMainWindow::close);
+
+    connect(zoomInAction, &QAction::triggered, this, &HyniWindow::zoomInResponseBox);
+    connect(zoomOutAction, &QAction::triggered, this, &HyniWindow::zoomOutResponseBox);
+
+    connect(aboutAction, &QAction::triggered, this, &HyniWindow::showAboutDialog);
+}
+
+void HyniWindow::onAISelectionChanged(QAction* action) {
+    hyni::chat_api::API_PROVIDER current = workers.first()->getProvider();
+    hyni::chat_api::API_PROVIDER newProvider;
+    QString selectedAI = action->data().toString();
+    if (selectedAI == "ChatGPT") {
+        newProvider = hyni::chat_api::API_PROVIDER::OpenAI;
+    }
+    else {
+        newProvider = hyni::chat_api::API_PROVIDER::DeepSeek;
+    }
+
+    if (current != newProvider) {
+        for (const QString& language : workers.keys()) {
+            if (language == "History") continue;
+            workers[language]->setProvider(newProvider);
+        }
+    }
+
+    // You could also update the status bar
+    statusBar()->showMessage(selectedAI + " selected", 2000);
+}
+
+void HyniWindow::zoomInResponseBox() {
+    for (const QString& language : responseEditors.keys()) {
+        if (language == "History") continue;
+        QFont font = responseEditors[language]->font();
+        font.setPointSize(font.pointSize() + 1);
+        responseEditors[language]->setFont(font);
+    }
+}
+
+void HyniWindow::zoomOutResponseBox() {
+    for (const QString& language : responseEditors.keys()) {
+        if (language == "History") continue;
+        QFont font = responseEditors[language]->font();
+        font.setPointSize(std::max(font.pointSize() - 1, 6));
+        responseEditors[language]->setFont(font);
+    }
+}
+
 void HyniWindow::keyPressEvent(QKeyEvent* event) {
     switch(event->key()) {
     case Qt::Key_Left:
@@ -364,7 +467,8 @@ void HyniWindow::captureScreen() {
             return;
         }
 
-        for (QTextEdit *editor : responseEditors.values()) {
+        for (const auto& [language, editor] : responseEditors.toStdMap()) {
+            if (language == "History") continue;
             editor->setPlainText("Processing...");
         }
         QApplication::processEvents();
@@ -372,6 +476,7 @@ void HyniWindow::captureScreen() {
         if (codingOption->isChecked()) {
             // Send to all workers
             for (const QString& language : workers.keys()) {
+                if (language == "History") continue;
                 QMetaObject::invokeMethod(workers[language], "sendImageRequest",
                                           Qt::QueuedConnection,
                                           Q_ARG(QPixmap, pixmap),
@@ -388,7 +493,8 @@ void HyniWindow::captureScreen() {
 }
 
 void HyniWindow::handleCapturedScreen(const QPixmap& pixmap) {
-    for (QTextEdit *editor : responseEditors.values()) {
+    for (const auto& [language, editor] : responseEditors.toStdMap()) {
+        if (language == "History") continue;
         editor->setPlainText("Processing...");
     }
     QApplication::processEvents();
@@ -396,6 +502,7 @@ void HyniWindow::handleCapturedScreen(const QPixmap& pixmap) {
     if (codingOption->isChecked()) {
         // Send to all workers
         for (const QString& language : workers.keys()) {
+            if (language == "History") continue;
             QMetaObject::invokeMethod(workers[language], "sendImageRequest",
                                       Qt::QueuedConnection,
                                       Q_ARG(QPixmap, pixmap),
@@ -432,21 +539,14 @@ void HyniWindow::sendText(bool repeat) {
     // Set "Processing..." for relevant editors
     if (amazonStarOption->isChecked()) {
         // STAR question - only first tab (C++)
-        qType = hyni::chat_api::QUESTION_TYPE::AmazonBehavioral;
+        qType = hyni::chat_api::QUESTION_TYPE::Behavioral;
         responseEditors.first()->setPlainText("Processing...");
         multiLanguage = false;
     }
     else if (systemDesignOption->isChecked()) {
         qType = hyni::chat_api::QUESTION_TYPE::SystemDesign;
-        enhancedPrompt = QString("%1\n\nProvide a comprehensive system design solution including:\n"
-                                 "- Functional requirements\n"
-                                 "- Non-functional requirements\n"
-                                 "- High-level architecture diagram\n"
-                                 "- Data model\n"
-                                 "- Scaling considerations\n"
-                                 "- Potential bottlenecks and solutions\n"
-                                 "- Anything that can bring plus points.\n")
-                             .arg(text);
+        enhancedPrompt = text;
+        enhancedPrompt += hyni::SYSTEM_DESIGN_EXT;
         multiLanguage = false;
     }
     else { // Coding option
@@ -457,7 +557,8 @@ void HyniWindow::sendText(bool repeat) {
     if (!multiLanguage) {
         responseEditors.first()->setPlainText("Processing...");
     } else {
-        for (QTextEdit *editor : responseEditors.values()) {
+        for (const auto& [language, editor] : responseEditors.toStdMap()) {
+            if (language == "History") continue;
             editor->setPlainText("Processing...");
         }
     }
@@ -474,13 +575,10 @@ void HyniWindow::sendText(bool repeat) {
     else {
         // For Coding (language-specific responses)
         for (const auto &[language, worker] : workers.asKeyValueRange()) {
-            QString langSpecificPrompt = QString("%1\n\nIf this is a coding question, please provide in %2:\n"
-                                                 "- Complete implementation\n"
-                                                 "- Time and space complexity\n"
-                                                 "- Alternative approaches\n"
-                                                 "- Edge cases considered\n"
-                                                 "- Any theoritical pattern, insights or applicable approaches.\n")
-                                             .arg(text).arg(language);
+            if (language == "History") continue;
+            QString langSpecificPrompt = text;
+            langSpecificPrompt += hyni::CODING_EXT;
+            langSpecificPrompt = langSpecificPrompt.arg(language);
 
             QMetaObject::invokeMethod(worker, "sendRequest",
                                       Qt::QueuedConnection,
@@ -546,4 +644,12 @@ void HyniWindow::onMessageReceived(const std::string& message) {
 void HyniWindow::receiveAudioData(const QByteArray& data) {
     std::vector<uint8_t> audioData(data.begin(), data.end());
     websocketClient->sendAudioBuffer(audioData);
+}
+
+void HyniWindow::showAboutDialog()
+{
+    QMessageBox::about(this, "About Qhyni",
+                       "<h2>Qhyni</h2>"
+                       "<p>Version 1.0</p>"
+                       "<p>hyni UI with gen AI and real-time transcription</p>");
 }

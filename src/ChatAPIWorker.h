@@ -14,6 +14,7 @@ public:
     ~ChatAPIWorker();
     hyni::chat_api::API_PROVIDER getProvider() const;
     void setLanguage(const QString& language);
+    void setProvider(hyni::chat_api::API_PROVIDER);
 
 public slots:
     void sendImageRequest(const QPixmap& pixmap, hyni::chat_api::QUESTION_TYPE type);
