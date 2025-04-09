@@ -144,6 +144,10 @@ void HyniWindow::addResponseTab(const QString& language) {
     editor->setPlaceholderText(language + " Response");
     editor->setReadOnly(true);
 
+    QFont font = editor->font();
+    font.setPointSize(font.pointSize() + 1);
+    editor->setFont(font);
+
     tabWidget->addTab(editor, language);
     responseEditors[language] = editor;
 }
