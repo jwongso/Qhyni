@@ -453,6 +453,12 @@ void HyniWindow::keyPressEvent(QKeyEvent* event) {
 }
 
 void HyniWindow::captureScreen() {
+
+    if (workers.first()->getProvider() == hyni::chat_api::API_PROVIDER::DeepSeek) {
+        statusBar()->showMessage("Image is not supported in the selected provider.", 5000);
+        return;
+    }
+
     QString savePath = "test.png";
     QStringList args = {"-a", "-b", "--nonotify", "-o", savePath};
 
@@ -497,6 +503,12 @@ void HyniWindow::captureScreen() {
 }
 
 void HyniWindow::handleCapturedScreen(const QPixmap& pixmap) {
+
+    if (workers.first()->getProvider() == hyni::chat_api::API_PROVIDER::DeepSeek) {
+        statusBar()->showMessage("Image is not supported in the selected provider.", 5000);
+        return;
+    }
+
     for (const auto& [language, editor] : responseEditors.toStdMap()) {
         if (language == "History") continue;
         editor->setPlainText("Processing...");

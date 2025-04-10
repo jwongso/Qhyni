@@ -98,6 +98,7 @@ void ChatAPIWorker::sendImageRequest(const QPixmap& pixmap, hyni::chat_api::QUES
 
             auto response = m_chatAPI->send_image(
                 base64Image,
+                type,
                 enhancedPrompt.toStdString(),
                 1500,
                 0.7,
