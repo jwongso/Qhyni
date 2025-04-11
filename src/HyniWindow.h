@@ -32,14 +32,14 @@ protected:
     void keyPressEvent(QKeyEvent* event) override;
 
 private slots:
-    void sendText(bool repeat = false);
+    void sendText(bool resend = false);
     void handleHighlightedText(const QString& texts);
     void onMessageReceived(const std::string& message);
     void onWebSocketConnected(bool connected);
     void onWebSocketError(const std::string& error);
-    void handleAPIResponse(const QString& response, const QString& language);
-    void handleAPIError(const QString& error, const QString& language);
-    void handleNeedAPIKey(const QString& language);
+    void handleAPIResponse(const QString& response);
+    void handleAPIError(const QString& error);
+    void handleNeedAPIKey();
     void captureScreen();
     void handleCapturedScreen(const QPixmap& pixmap);
     void receiveAudioData(const QByteArray& data);
@@ -47,6 +47,7 @@ private slots:
     void zoomInResponseBox();
     void zoomOutResponseBox();
     void showAboutDialog();
+    void onLanguageChanged(QAction* action);
 
 private:
     void attemptReconnect();
@@ -70,8 +71,8 @@ private:
     bool m_apiKeyRequested{false};
 
     QMap<QString, QTextEdit*> responseEditors;
-    QMap<QString, ChatAPIWorker*> workers;
-    QMap<QString, QThread*> threads;
+    ChatAPIWorker* worker;
+    QThread* thread;
 
     std::unique_ptr<QTimer> reconnectTimer;
     std::unique_ptr<boost::asio::io_context> io_context;

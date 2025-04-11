@@ -55,17 +55,15 @@ hyni::chat_api::API_PROVIDER ChatAPIWorker::getProvider() const {
         hyni::chat_api::API_PROVIDER::Unknown;
 }
 
-void ChatAPIWorker::setLanguage(const QString& language) {
-    m_language = language;
-}
-
 void ChatAPIWorker::setProvider(hyni::chat_api::API_PROVIDER provider) {
     if (m_chatAPI->get_api_provider() != provider) {
         m_chatAPI.reset(new hyni::chat_api(provider));
     }
 }
 
-void ChatAPIWorker::sendImageRequest(const QPixmap& pixmap, hyni::chat_api::QUESTION_TYPE type) {
+void ChatAPIWorker::sendImageRequest(const QPixmap& pixmap,
+                                     const QString& language,
+                                     hyni::chat_api::QUESTION_TYPE type) {
     if (m_isBusy.exchange(true)) {
         qDebug() << "Image request ignored - worker busy";
         return;
@@ -89,7 +87,7 @@ void ChatAPIWorker::sendImageRequest(const QPixmap& pixmap, hyni::chat_api::QUES
 
             if (type == hyni::chat_api::QUESTION_TYPE::Coding) {
                 enhancedPrompt += hyni::CODING_EXT;
-                enhancedPrompt = enhancedPrompt.arg(m_language);
+                enhancedPrompt = enhancedPrompt.arg(language);
             } else {
                 enhancedPrompt += hyni::SYSTEM_DESIGN_EXT;
             }

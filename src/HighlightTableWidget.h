@@ -11,7 +11,6 @@ public:
     explicit HighlightTableWidget(QWidget* parent = nullptr);
     QString getLastRowString() const;
     QString getLastRowString();
-    void clearRow();
 
 signals:
     void textHighlighted(const QString& text);
@@ -19,6 +18,7 @@ signals:
 public slots:
     void highlightText(const QString& text);
     void addText(const QString& text);
+    void clearRow();
 
 private:
     QString getLastRowStringImpl() const {

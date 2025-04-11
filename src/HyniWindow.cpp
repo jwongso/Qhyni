@@ -76,9 +76,7 @@ HyniWindow::HyniWindow(QWidget *parent)
 
     // Right side: Tabs for multi-lang responses
     tabWidget = new QTabWidget(this);
-    for (const auto& lang : hyni::PROG_LANGUAGES) {
-        addResponseTab(QString::fromStdString(lang));
-    }
+    addResponseTab(QString::fromStdString(hyni::DEFAULT_PROG_LANGUAGE));
 
     // Add history
     addResponseTab("History");
@@ -152,6 +150,43 @@ void HyniWindow::addResponseTab(const QString& language) {
     responseEditors[language] = editor;
 }
 
+void HyniWindow::onLanguageChanged(QAction* action) {
+    // Validate inputs
+    if (!action || !tabWidget || tabWidget->count() == 0) {
+        return;
+    }
+
+    const QString newLang = action->data().toString();
+    const QString oldLang = tabWidget->tabText(0).remove('&');
+
+    // Skip if language isn't actually changing
+    if (newLang == oldLang) {
+        return;
+    }
+
+    // Ensure we have the editor for the old language
+    if (!responseEditors.contains(oldLang)) {
+        qWarning() << "No editor found for language:" << oldLang;
+        return;
+    }
+
+    // Get and validate the editor
+    QTextEdit *editor = responseEditors.value(oldLang);
+    if (!editor) {
+        qWarning() << "Null editor for language:" << oldLang;
+        return;
+    }
+
+    // Update UI and data structures
+    tabWidget->setTabText(0, newLang);
+    responseEditors.remove(oldLang);
+    responseEditors.insert(newLang, editor);
+
+    // Update editor properties
+    editor->setPlaceholderText(newLang + " Response");
+    editor->clear();  // Optional: clear content when changing languages
+}
+
 HyniWindow::~HyniWindow() {
 #ifdef ENABLE_AUDIO_STREAM
     m_streamer.stopRecording();
@@ -186,19 +221,14 @@ HyniWindow::~HyniWindow() {
 }
 
 void HyniWindow::cleanupAPIWorkers() {
-    for (const QString& language : threads.keys()) {
-        QThread *thread = threads[language];
-        if (thread) {
-            thread->quit();
-            if (!thread->wait(500)) {
-                thread->terminate();
-                thread->wait();
-            }
-            delete thread;
+    if (thread) {
+        thread->quit();
+        if (!thread->wait(500)) {
+            thread->terminate();
+            thread->wait();
         }
+        delete thread;
     }
-    workers.clear();
-    threads.clear();
 }
 
 void HyniWindow::setupAPIWorkers() {
@@ -207,9 +237,8 @@ void HyniWindow::setupAPIWorkers() {
 
         if (language == "History") continue;
 
-        QThread *thread = new QThread(this);
-        ChatAPIWorker *worker = new ChatAPIWorker();
-        worker->setLanguage(language);
+        thread = new QThread(this);
+        worker = new ChatAPIWorker();
 
         if (!m_sharedApiKey.isEmpty()) {
             worker->setAPIKey(m_sharedApiKey);
@@ -218,29 +247,27 @@ void HyniWindow::setupAPIWorkers() {
         worker->moveToThread(thread);
 
         connect(worker, &ChatAPIWorker::responseReceived,
-                this, [this, language](const QString& response) {
-                    handleAPIResponse(response, language);
+                this, [this](const QString& response) {
+                    handleAPIResponse(response);
                 });
         connect(worker, &ChatAPIWorker::errorOccurred,
-                this, [this, language](const QString& error) {
-                    handleAPIError(error, language);
+                this, [this](const QString& error) {
+                    handleAPIError(error);
                 });
         connect(worker, &ChatAPIWorker::needApiKey,
-                this, [this, language]() {
-                    handleNeedAPIKey(language);
+                this, [this]() {
+                    handleNeedAPIKey();
                 });
 
         connect(thread, &QThread::finished, worker, &QObject::deleteLater);
 
-        workers[language] = worker;
-        threads[language] = thread;
         thread->start();
     }
 }
 
-void HyniWindow::handleAPIResponse(const QString& response, const QString& language) {
-    if (responseEditors.contains(language)) {
-        responseEditors[language]->setMarkdown(response);
+void HyniWindow::handleAPIResponse(const QString& response) {
+    if (responseEditors.contains(tabWidget->tabText(0).remove('&'))) {
+        responseEditors[tabWidget->tabText(0).remove('&')]->setMarkdown(response);
         m_history.push_back(response);
         qDebug() << response;
     }
@@ -257,22 +284,20 @@ void HyniWindow::handleAPIResponse(const QString& response, const QString& langu
         }
     }
 
-    statusBar()->showMessage(language + " response received", 3000);
+    statusBar()->showMessage(tabWidget->tabText(0).remove('&') + " response received", 3000);
 }
 
-void HyniWindow::handleAPIError(const QString& error, const QString& language) {
-    QMessageBox::warning(this, language + " API Error", error);
+void HyniWindow::handleAPIError(const QString& error) {
+    QMessageBox::warning(this, "API Error", error);
     statusBar()->showMessage(error, 5000);
 }
 
-void HyniWindow::handleNeedAPIKey(const QString& language) {
+void HyniWindow::handleNeedAPIKey() {
     // If we already have a key or are in the process of requesting one
     if (!m_sharedApiKey.isEmpty() || m_apiKeyRequested) {
         if (!m_sharedApiKey.isEmpty()) {
             // Distribute the existing key to all workers
-            for (ChatAPIWorker* worker : workers.values()) {
-                worker->setAPIKey(m_sharedApiKey);
-            }
+            worker->setAPIKey(m_sharedApiKey);
         }
         return;
     }
@@ -281,9 +306,9 @@ void HyniWindow::handleNeedAPIKey(const QString& language) {
 
     bool ok;
     QString label = "Enter your API Key for ";
-    if (workers[language]->getProvider() == hyni::chat_api::API_PROVIDER::OpenAI) {
+    if (worker->getProvider() == hyni::chat_api::API_PROVIDER::OpenAI) {
         label += "Open AI";
-    } else if (workers[language]->getProvider() == hyni::chat_api::API_PROVIDER::DeepSeek) {
+    } else if (worker->getProvider() == hyni::chat_api::API_PROVIDER::DeepSeek) {
         label += "DeepSeek";
     } else {
         label += "Unknown";
@@ -296,9 +321,7 @@ void HyniWindow::handleNeedAPIKey(const QString& language) {
     if (ok && !userKey.isEmpty()) {
         m_sharedApiKey = userKey;
         // Distribute the key to all workers
-        for (ChatAPIWorker* worker : workers.values()) {
-            worker->setAPIKey(m_sharedApiKey);
-        }
+        worker->setAPIKey(m_sharedApiKey);
     } else {
         statusBar()->showMessage("No API-Key available");
     }
@@ -359,6 +382,83 @@ void HyniWindow::setupMenuBar(QMenuBar* menuBar) {
     exitAction->setShortcut(QKeySequence::Quit);  // Standard quit shortcut (Ctrl+Q on most platforms)
     aiMenu->addAction(exitAction);
 
+    // Actions Menu
+    QMenu *actionsMenu = menuBar->addMenu("&Actions");
+
+    // Send as prompt (S)
+    QAction *sendAction = new QAction("&Send as prompt", this);
+    sendAction->setShortcut(Qt::Key_S);
+    connect(sendAction, &QAction::triggered, this, &HyniWindow::sendText);
+    actionsMenu->addAction(sendAction);
+
+    // Clear transcribed text (C)
+    QAction *clearAction = new QAction("&Clear transcribed text", this);
+    clearAction->setShortcut(Qt::Key_C);
+    connect(clearAction, &QAction::triggered, this, [this]() {
+        highlightTableWidget->clearRow();
+    });
+    actionsMenu->addAction(clearAction);
+
+    // Toggle question types (T)
+    QAction *toggleAction = new QAction("&Toggle question types", this);
+    toggleAction->setShortcut(Qt::Key_T);
+    connect(toggleAction, &QAction::triggered, this, &HyniWindow::toggleQuestionType);
+    actionsMenu->addAction(toggleAction);
+
+    // Append and send (A)
+    QAction *appendAction = new QAction("&Append and send", this);
+    appendAction->setShortcut(Qt::Key_A);
+    connect(appendAction, &QAction::triggered, this, [this]() {
+        QString last = promptTextBox->toPlainText();
+        last += ". " + highlightTableWidget->getLastRowString();
+        highlightTableWidget->clearRow();
+        highlightTableWidget->addText(last);
+        sendText();
+    });
+    actionsMenu->addAction(appendAction);
+
+    // Resend (R)
+    QAction *resendAction = new QAction("&Resend", this);
+    resendAction->setShortcut(Qt::Key_R);
+    connect(resendAction, &QAction::triggered, this, [this]() { sendText(true); });
+    actionsMenu->addAction(resendAction);
+
+    // Screenshot (P)
+    QAction *screenshotAction = new QAction("&Screenshot", this);
+    screenshotAction->setShortcut(Qt::Key_P);
+    connect(screenshotAction, &QAction::triggered, this, [this]() {
+        QTimer::singleShot(3000, this, &HyniWindow::captureScreen);
+    });
+    actionsMenu->addAction(screenshotAction);
+
+    // Languages Menu
+    QMenu *languagesMenu = menuBar->addMenu("&Languages");
+    QActionGroup *langGroup = new QActionGroup(this);
+    langGroup->setExclusive(true);
+    const QVector<QString> languages = {
+        {"C++"},
+        {"C#"},
+        {"Go"},
+        {"Java"},
+        {"Javascript"},
+        {"Python"},
+        {"Rust"}
+    };
+    // Create language actions
+    for (const auto& lang : languages) {
+        QAction *action = new QAction(lang, this);
+        action->setCheckable(true);
+        action->setData(lang);
+        langGroup->addAction(action);
+        languagesMenu->addAction(action);
+
+        if (hyni::DEFAULT_PROG_LANGUAGE == lang.toStdString()) {
+            action->setChecked(true);
+        }
+    }
+
+    connect(langGroup, &QActionGroup::triggered, this, &HyniWindow::onLanguageChanged);
+
     QMenu *viewMenu = menuBar->addMenu("&View");
     QAction *zoomInAction = viewMenu->addAction("Zoom &In");
     zoomInAction->setShortcut(QKeySequence::ZoomIn);
@@ -379,7 +479,7 @@ void HyniWindow::setupMenuBar(QMenuBar* menuBar) {
 }
 
 void HyniWindow::onAISelectionChanged(QAction* action) {
-    hyni::chat_api::API_PROVIDER current = workers.first()->getProvider();
+    hyni::chat_api::API_PROVIDER current = worker->getProvider();
     hyni::chat_api::API_PROVIDER newProvider;
     QString selectedAI = action->data().toString();
     if (selectedAI == "ChatGPT") {
@@ -390,10 +490,7 @@ void HyniWindow::onAISelectionChanged(QAction* action) {
     }
 
     if (current != newProvider) {
-        for (const QString& language : workers.keys()) {
-            if (language == "History") continue;
-            workers[language]->setProvider(newProvider);
-        }
+        worker->setProvider(newProvider);
     }
 
     // You could also update the status bar
@@ -442,7 +539,7 @@ void HyniWindow::keyPressEvent(QKeyEvent* event) {
         break;
     }
     case Qt::Key_R:            // Resend
-        sendText(true);
+        sendText();
         break;
     case Qt::Key_P:            // Screenshot
         QTimer::singleShot(3000, this, &HyniWindow::captureScreen);
@@ -454,7 +551,7 @@ void HyniWindow::keyPressEvent(QKeyEvent* event) {
 
 void HyniWindow::captureScreen() {
 
-    if (workers.first()->getProvider() == hyni::chat_api::API_PROVIDER::DeepSeek) {
+    if (worker->getProvider() == hyni::chat_api::API_PROVIDER::DeepSeek) {
         statusBar()->showMessage("Image is not supported in the selected provider.", 5000);
         return;
     }
@@ -483,28 +580,19 @@ void HyniWindow::captureScreen() {
         }
         QApplication::processEvents();
 
-        if (codingOption->isChecked()) {
-            // Send to all workers
-            for (const QString& language : workers.keys()) {
-                if (language == "History") continue;
-                QMetaObject::invokeMethod(workers[language], "sendImageRequest",
-                                          Qt::QueuedConnection,
-                                          Q_ARG(QPixmap, pixmap),
-                                          Q_ARG(hyni::chat_api::QUESTION_TYPE, hyni::chat_api::QUESTION_TYPE::Coding));
-            }
-        }
-        else {
-            QMetaObject::invokeMethod(workers.first(), "sendImageRequest",
-                                      Qt::QueuedConnection,
-                                      Q_ARG(QPixmap, pixmap),
-                                      Q_ARG(hyni::chat_api::QUESTION_TYPE, hyni::chat_api::QUESTION_TYPE::SystemDesign));
-        }
+        QMetaObject::invokeMethod(worker, "sendImageRequest",
+                                  Qt::QueuedConnection,
+                                  Q_ARG(QPixmap, pixmap),
+                                  tabWidget->tabText(0).remove('&'),
+                                  Q_ARG(hyni::chat_api::QUESTION_TYPE,
+                                        codingOption->isChecked() ? hyni::chat_api::QUESTION_TYPE::Coding :
+                                                                    hyni::chat_api::QUESTION_TYPE::SystemDesign));
     }
 }
 
 void HyniWindow::handleCapturedScreen(const QPixmap& pixmap) {
 
-    if (workers.first()->getProvider() == hyni::chat_api::API_PROVIDER::DeepSeek) {
+    if (worker->getProvider() == hyni::chat_api::API_PROVIDER::DeepSeek) {
         statusBar()->showMessage("Image is not supported in the selected provider.", 5000);
         return;
     }
@@ -515,38 +603,27 @@ void HyniWindow::handleCapturedScreen(const QPixmap& pixmap) {
     }
     QApplication::processEvents();
 
-    if (codingOption->isChecked()) {
-        // Send to all workers
-        for (const QString& language : workers.keys()) {
-            if (language == "History") continue;
-            QMetaObject::invokeMethod(workers[language], "sendImageRequest",
-                                      Qt::QueuedConnection,
-                                      Q_ARG(QPixmap, pixmap),
-                                      Q_ARG(hyni::chat_api::QUESTION_TYPE, hyni::chat_api::QUESTION_TYPE::Coding));
-        }
-    }
-    else {
-        QMetaObject::invokeMethod(workers.first(), "sendImageRequest",
-                                  Qt::QueuedConnection,
-                                  Q_ARG(QPixmap, pixmap),
-                                  Q_ARG(hyni::chat_api::QUESTION_TYPE, hyni::chat_api::QUESTION_TYPE::SystemDesign));
-    }
+    QMetaObject::invokeMethod(worker, "sendImageRequest",
+                              Qt::QueuedConnection,
+                              Q_ARG(QPixmap, pixmap),
+                              Q_ARG(hyni::chat_api::QUESTION_TYPE,
+                                    codingOption->isChecked() ? hyni::chat_api::QUESTION_TYPE::Coding :
+                                                                hyni::chat_api::QUESTION_TYPE::SystemDesign));
 }
 
-void HyniWindow::sendText(bool repeat) {
+void HyniWindow::sendText(bool resend) {
 
     QString text = highlightTableWidget->getLastRowString();
-    if (repeat) {
-        QString last(text);
+
+    if (resend) {
         text = promptTextBox->toPlainText();
-        text += ". ";
-        text += last;
+    } else {
+        highlightTableWidget->setRowCount(0);
     }
 
     if (text.isEmpty()) return;
 
     promptTextBox->setText(text);
-    highlightTableWidget->setRowCount(0);
 
     hyni::chat_api::QUESTION_TYPE qType;
     QString enhancedPrompt;
@@ -583,24 +660,21 @@ void HyniWindow::sendText(bool repeat) {
     // Send requests
     if (!multiLanguage) {
         // For STAR and System Design (single response)
-        QMetaObject::invokeMethod(workers.first(), "sendRequest",
+        QMetaObject::invokeMethod(worker, "sendRequest",
                                   Qt::QueuedConnection,
                                   Q_ARG(QString, enhancedPrompt),
                                   Q_ARG(hyni::chat_api::QUESTION_TYPE, qType));
     }
     else {
         // For Coding (language-specific responses)
-        for (const auto &[language, worker] : workers.asKeyValueRange()) {
-            if (language == "History") continue;
-            QString langSpecificPrompt = text;
-            langSpecificPrompt += hyni::CODING_EXT;
-            langSpecificPrompt = langSpecificPrompt.arg(language);
+        QString langSpecificPrompt = text;
+        langSpecificPrompt += hyni::CODING_EXT;
+        langSpecificPrompt = langSpecificPrompt.arg(tabWidget->tabText(0).remove('&'));
 
-            QMetaObject::invokeMethod(worker, "sendRequest",
-                                      Qt::QueuedConnection,
-                                      Q_ARG(QString, langSpecificPrompt),
-                                      Q_ARG(hyni::chat_api::QUESTION_TYPE, qType));
-        }
+        QMetaObject::invokeMethod(worker, "sendRequest",
+                                  Qt::QueuedConnection,
+                                  Q_ARG(QString, langSpecificPrompt),
+                                  Q_ARG(hyni::chat_api::QUESTION_TYPE, qType));
     }
 }
 
