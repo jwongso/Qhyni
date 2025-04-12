@@ -710,7 +710,7 @@ void HyniWindow::showAboutDialog()
         "<p>Library Commit: <code>%2</code></p>"
         "<p>hyni UI with gen AI and real-time transcription</p>";
 
-    aboutText = aboutText.arg(QHYNI_COMMIT_HASH).arg(hyni::get_commit_hash().c_str());
+    aboutText = aboutText.arg(QHYNI_COMMIT_HASH).arg(HYNI_COMMIT_HASH);
 
     QMessageBox::about(this, "About Qhyni", aboutText);
 }
