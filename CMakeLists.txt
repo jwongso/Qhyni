@@ -42,6 +42,8 @@ endif()
 
 add_compile_definitions(QHYNI_COMMIT_HASH="${QHYNI_COMMIT_HASH}")
 
+message(STATUS "Qhyni commit hash: ${QHYNI_COMMIT_HASH}")
+
 string(
     APPEND opts
         "$<$<AND:$<CONFIG:RELEASE>,$<COMPILE_LANGUAGE:CXX>>:-MMD;-Wall;-Wno-deprecated-declarations;-march=alderlake;-O3;-march=native;-std=c++20;-fPIC;-DQT_NO_DEBUG_OUTPUT;-flto;-fomit-frame-pointer;-DNDEBUG>"
@@ -140,6 +142,8 @@ if(hyni_POPULATED)
     endif()
 
     add_compile_definitions(HYNI_COMMIT_HASH="${HYNI_LIB_COMMIT_HASH}")
+
+    message(STATUS "hyni commit hash: ${HYNI_LIB_COMMIT_HASH}")
 endif()
 
 # Your UI sources
