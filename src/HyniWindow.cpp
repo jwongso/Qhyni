@@ -256,7 +256,7 @@ void HyniWindow::handleAPIResponse(const QString& response) {
     m_history.push_back(response);
     qDebug() << response;
 
-    if (responseEditors.last()->toPlainText() == "History") {
+    if (responseEditors.count() > 1) {
         QString history;
         for (const auto& page : m_history) {
             history += page;
