@@ -23,6 +23,25 @@ if(CCACHE_FOUND)
     set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_FOUND})
 endif(CCACHE_FOUND)
 
+execute_process(
+    COMMAND git rev-parse --short HEAD
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}  # App's source dir
+    OUTPUT_VARIABLE QHYNI_COMMIT_HASH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+execute_process(
+    COMMAND git diff --quiet --exit-code
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    RESULT_VARIABLE IS_DIRTY
+)
+
+if(IS_DIRTY)
+    set(QHYNI_COMMIT_HASH "${QHYNI_COMMIT_HASH}-dirty")
+endif()
+
+add_compile_definitions(QHYNI_COMMIT_HASH="${QHYNI_COMMIT_HASH}")
+
 string(
     APPEND opts
         "$<$<AND:$<CONFIG:RELEASE>,$<COMPILE_LANGUAGE:CXX>>:-MMD;-Wall;-Wno-deprecated-declarations;-march=alderlake;-O3;-march=native;-std=c++20;-fPIC;-DQT_NO_DEBUG_OUTPUT;-flto;-fomit-frame-pointer;-DNDEBUG>"
@@ -101,6 +120,27 @@ endif()
 
 # Make hyni available
 FetchContent_MakeAvailable(hyni)
+
+if(hyni_POPULATED)
+    execute_process(
+        COMMAND git rev-parse --short HEAD
+        WORKING_DIRECTORY ${hyni_SOURCE_DIR}
+        OUTPUT_VARIABLE HYNI_LIB_COMMIT_HASH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    execute_process(
+        COMMAND git diff --quiet --exit-code
+        WORKING_DIRECTORY ${hyni_SOURCE_DIR}
+        RESULT_VARIABLE IS_DIRTY
+    )
+
+    if(IS_DIRTY)
+        set(HYNI_LIB_COMMIT_HASH "${HYNI_LIB_COMMIT_HASH}-dirty")
+    endif()
+
+    add_compile_definitions(HYNI_COMMIT_HASH="${HYNI_LIB_COMMIT_HASH}")
+endif()
 
 # Your UI sources
 set(UI_SOURCES

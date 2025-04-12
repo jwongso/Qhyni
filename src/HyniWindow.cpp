@@ -76,9 +76,13 @@ HyniWindow::HyniWindow(QWidget *parent)
 
     // Right side: Tabs for multi-lang responses
     tabWidget = new QTabWidget(this);
-    addResponseTab(QString::fromStdString(hyni::DEFAULT_PROG_LANGUAGE));
+    if (std::char_traits<char>::length(hyni::DEFAULT_PROG_LANGUAGE) != 0) {
+        addResponseTab(QString::fromStdString(hyni::DEFAULT_PROG_LANGUAGE));
+    } else {
+        addResponseTab("Python");
+    }
 
-    // Add history
+    // Add history, must be the last.
     addResponseTab("History");
 
     splitter->addWidget(tabWidget);
@@ -147,7 +151,7 @@ void HyniWindow::addResponseTab(const QString& language) {
     editor->setFont(font);
 
     tabWidget->addTab(editor, language);
-    responseEditors[language] = editor;
+    responseEditors.push_back(editor);
 }
 
 void HyniWindow::onLanguageChanged(QAction* action) {
@@ -164,27 +168,15 @@ void HyniWindow::onLanguageChanged(QAction* action) {
         return;
     }
 
-    // Ensure we have the editor for the old language
-    if (!responseEditors.contains(oldLang)) {
-        qWarning() << "No editor found for language:" << oldLang;
-        return;
-    }
-
     // Get and validate the editor
-    QTextEdit *editor = responseEditors.value(oldLang);
-    if (!editor) {
-        qWarning() << "Null editor for language:" << oldLang;
-        return;
-    }
+    QTextEdit *editor = responseEditors.first();
 
     // Update UI and data structures
     tabWidget->setTabText(0, newLang);
-    responseEditors.remove(oldLang);
-    responseEditors.insert(newLang, editor);
 
     // Update editor properties
+    editor->clear();
     editor->setPlaceholderText(newLang + " Response");
-    editor->clear();  // Optional: clear content when changing languages
 }
 
 HyniWindow::~HyniWindow() {
@@ -232,47 +224,39 @@ void HyniWindow::cleanupAPIWorkers() {
 }
 
 void HyniWindow::setupAPIWorkers() {
-    // Setup workers for all languages
-    for (const QString& language : responseEditors.keys()) {
+    thread = new QThread(this);
+    worker = new ChatAPIWorker();
 
-        if (language == "History") continue;
-
-        thread = new QThread(this);
-        worker = new ChatAPIWorker();
-
-        if (!m_sharedApiKey.isEmpty()) {
-            worker->setAPIKey(m_sharedApiKey);
-        }
-
-        worker->moveToThread(thread);
-
-        connect(worker, &ChatAPIWorker::responseReceived,
-                this, [this](const QString& response) {
-                    handleAPIResponse(response);
-                });
-        connect(worker, &ChatAPIWorker::errorOccurred,
-                this, [this](const QString& error) {
-                    handleAPIError(error);
-                });
-        connect(worker, &ChatAPIWorker::needApiKey,
-                this, [this]() {
-                    handleNeedAPIKey();
-                });
-
-        connect(thread, &QThread::finished, worker, &QObject::deleteLater);
-
-        thread->start();
+    if (!m_sharedApiKey.isEmpty()) {
+        worker->setAPIKey(m_sharedApiKey);
     }
+
+    worker->moveToThread(thread);
+
+    connect(worker, &ChatAPIWorker::responseReceived,
+            this, [this](const QString& response) {
+                handleAPIResponse(response);
+            });
+    connect(worker, &ChatAPIWorker::errorOccurred,
+            this, [this](const QString& error) {
+                handleAPIError(error);
+            });
+    connect(worker, &ChatAPIWorker::needApiKey,
+            this, [this]() {
+                handleNeedAPIKey();
+            });
+
+    connect(thread, &QThread::finished, worker, &QObject::deleteLater);
+
+    thread->start();
 }
 
 void HyniWindow::handleAPIResponse(const QString& response) {
-    if (responseEditors.contains(tabWidget->tabText(0).remove('&'))) {
-        responseEditors[tabWidget->tabText(0).remove('&')]->setMarkdown(response);
-        m_history.push_back(response);
-        qDebug() << response;
-    }
+    responseEditors.first()->setMarkdown(response);
+    m_history.push_back(response);
+    qDebug() << response;
 
-    if (responseEditors.contains("History")) {
+    if (responseEditors.last()->toPlainText() == "History") {
         QString history;
         for (const auto& page : m_history) {
             history += page;
@@ -280,7 +264,7 @@ void HyniWindow::handleAPIResponse(const QString& response) {
         }
 
         if (!history.isEmpty()) {
-            responseEditors["History"]->setMarkdown(history);
+            responseEditors.last()->setMarkdown(history);
         }
     }
 
@@ -498,21 +482,15 @@ void HyniWindow::onAISelectionChanged(QAction* action) {
 }
 
 void HyniWindow::zoomInResponseBox() {
-    for (const QString& language : responseEditors.keys()) {
-        if (language == "History") continue;
-        QFont font = responseEditors[language]->font();
-        font.setPointSize(font.pointSize() + 1);
-        responseEditors[language]->setFont(font);
-    }
+    QFont font = responseEditors.front()->font();
+    font.setPointSize(font.pointSize() + 1);
+    responseEditors.front()->setFont(font);
 }
 
 void HyniWindow::zoomOutResponseBox() {
-    for (const QString& language : responseEditors.keys()) {
-        if (language == "History") continue;
-        QFont font = responseEditors[language]->font();
-        font.setPointSize(std::max(font.pointSize() - 1, 6));
-        responseEditors[language]->setFont(font);
-    }
+    QFont font = responseEditors.front()->font();
+    font.setPointSize(std::max(font.pointSize() - 1, 6));
+    responseEditors.front()->setFont(font);
 }
 
 void HyniWindow::keyPressEvent(QKeyEvent* event) {
@@ -574,10 +552,7 @@ void HyniWindow::captureScreen() {
             return;
         }
 
-        for (const auto& [language, editor] : responseEditors.toStdMap()) {
-            if (language == "History") continue;
-            editor->setPlainText("Processing...");
-        }
+        responseEditors.front()->setPlainText("Processing...");
         QApplication::processEvents();
 
         QMetaObject::invokeMethod(worker, "sendImageRequest",
@@ -597,10 +572,7 @@ void HyniWindow::handleCapturedScreen(const QPixmap& pixmap) {
         return;
     }
 
-    for (const auto& [language, editor] : responseEditors.toStdMap()) {
-        if (language == "History") continue;
-        editor->setPlainText("Processing...");
-    }
+    responseEditors.front()->setPlainText("Processing...");
     QApplication::processEvents();
 
     QMetaObject::invokeMethod(worker, "sendImageRequest",
@@ -647,14 +619,7 @@ void HyniWindow::sendText(bool resend) {
         multiLanguage = true;
     }
 
-    if (!multiLanguage) {
-        responseEditors.first()->setPlainText("Processing...");
-    } else {
-        for (const auto& [language, editor] : responseEditors.toStdMap()) {
-            if (language == "History") continue;
-            editor->setPlainText("Processing...");
-        }
-    }
+    responseEditors.front()->setPlainText("Processing...");
     QApplication::processEvents();
 
     // Send requests
@@ -738,8 +703,14 @@ void HyniWindow::receiveAudioData(const QByteArray& data) {
 
 void HyniWindow::showAboutDialog()
 {
-    QMessageBox::about(this, "About Qhyni",
-                       "<h2>Qhyni</h2>"
-                       "<p>Version 1.0</p>"
-                       "<p>hyni UI with gen AI and real-time transcription</p>");
+    QString aboutText =
+        "<h2>Qhyni</h2>"
+        "<p>Version 1.0</p>"
+        "<p>App Commit: <code>%1</code></p>"
+        "<p>Library Commit: <code>%2</code></p>"
+        "<p>hyni UI with gen AI and real-time transcription</p>";
+
+    aboutText = aboutText.arg(QHYNI_COMMIT_HASH).arg(hyni::get_commit_hash().c_str());
+
+    QMessageBox::about(this, "About Qhyni", aboutText);
 }

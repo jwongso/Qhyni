@@ -70,7 +70,7 @@ private:
     QString m_sharedApiKey;
     bool m_apiKeyRequested{false};
 
-    QMap<QString, QTextEdit*> responseEditors;
+    QVector<QTextEdit*> responseEditors;
     ChatAPIWorker* worker;
     QThread* thread;
 
