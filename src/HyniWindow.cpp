@@ -555,13 +555,12 @@ void HyniWindow::captureScreen() {
         responseEditors.front()->setPlainText("Processing...");
         QApplication::processEvents();
 
-        QMetaObject::invokeMethod(worker, "sendImageRequest",
-                                  Qt::QueuedConnection,
-                                  Q_ARG(QPixmap, pixmap),
-                                  tabWidget->tabText(0).remove('&'),
-                                  Q_ARG(hyni::chat_api::QUESTION_TYPE,
-                                        codingOption->isChecked() ? hyni::chat_api::QUESTION_TYPE::Coding :
-                                                                    hyni::chat_api::QUESTION_TYPE::SystemDesign));
+        worker->sendImageRequest(pixmap,
+                                 tabWidget->tabText(0).remove('&'),
+                                 codingOption->isChecked() ?
+                                     hyni::chat_api::QUESTION_TYPE::Coding :
+                                     hyni::chat_api::QUESTION_TYPE::SystemDesign
+                                 );
     }
 }
 
@@ -575,12 +574,12 @@ void HyniWindow::handleCapturedScreen(const QPixmap& pixmap) {
     responseEditors.front()->setPlainText("Processing...");
     QApplication::processEvents();
 
-    QMetaObject::invokeMethod(worker, "sendImageRequest",
-                              Qt::QueuedConnection,
-                              Q_ARG(QPixmap, pixmap),
-                              Q_ARG(hyni::chat_api::QUESTION_TYPE,
-                                    codingOption->isChecked() ? hyni::chat_api::QUESTION_TYPE::Coding :
-                                                                hyni::chat_api::QUESTION_TYPE::SystemDesign));
+    worker->sendImageRequest(pixmap,
+                             tabWidget->tabText(0).remove('&'),
+                             codingOption->isChecked() ?
+                                 hyni::chat_api::QUESTION_TYPE::Coding :
+                                 hyni::chat_api::QUESTION_TYPE::SystemDesign
+                             );
 }
 
 void HyniWindow::sendText(bool resend) {
@@ -625,10 +624,7 @@ void HyniWindow::sendText(bool resend) {
     // Send requests
     if (!multiLanguage) {
         // For STAR and System Design (single response)
-        QMetaObject::invokeMethod(worker, "sendRequest",
-                                  Qt::QueuedConnection,
-                                  Q_ARG(QString, enhancedPrompt),
-                                  Q_ARG(hyni::chat_api::QUESTION_TYPE, qType));
+        worker->sendRequest(enhancedPrompt, qType);
     }
     else {
         // For Coding (language-specific responses)
@@ -636,10 +632,7 @@ void HyniWindow::sendText(bool resend) {
         langSpecificPrompt += hyni::CODING_EXT;
         langSpecificPrompt = langSpecificPrompt.arg(tabWidget->tabText(0).remove('&'));
 
-        QMetaObject::invokeMethod(worker, "sendRequest",
-                                  Qt::QueuedConnection,
-                                  Q_ARG(QString, langSpecificPrompt),
-                                  Q_ARG(hyni::chat_api::QUESTION_TYPE, qType));
+        worker->sendRequest(langSpecificPrompt, qType);
     }
 }
 
