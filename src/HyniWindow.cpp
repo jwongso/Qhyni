@@ -450,6 +450,7 @@ void HyniWindow::setupMenuBar(QMenuBar* menuBar) {
     zoomOutAction->setShortcut(QKeySequence::ZoomOut);
 
     QMenu *helpMenu = menuBar->addMenu("&Help");
+    QAction *testAction = helpMenu->addAction("&Run Tests");
     QAction *aboutAction = helpMenu->addAction("&About");
 
     // Connect signals
@@ -459,6 +460,7 @@ void HyniWindow::setupMenuBar(QMenuBar* menuBar) {
     connect(zoomInAction, &QAction::triggered, this, &HyniWindow::zoomInResponseBox);
     connect(zoomOutAction, &QAction::triggered, this, &HyniWindow::zoomOutResponseBox);
 
+    connect(testAction, &QAction::triggered, this, &HyniWindow::runTests);
     connect(aboutAction, &QAction::triggered, this, &HyniWindow::showAboutDialog);
 }
 
@@ -694,8 +696,7 @@ void HyniWindow::receiveAudioData(const QByteArray& data) {
     websocketClient->sendAudioBuffer(audioData);
 }
 
-void HyniWindow::showAboutDialog()
-{
+void HyniWindow::showAboutDialog() {
     QString aboutText =
         "<h2>Qhyni</h2>"
         "<p>Version 1.0</p>"
