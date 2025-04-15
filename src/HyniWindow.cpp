@@ -574,9 +574,11 @@ void HyniWindow::captureScreen() {
             qType = hyni::chat_api::QUESTION_TYPE::Coding;
         }
 
-        worker->sendImageRequest(pixmap,
-                                 tabWidget->tabText(0).remove('&'),
-                                 qType);
+        QMetaObject::invokeMethod(worker, "sendImageRequest",
+                                  Qt::QueuedConnection,
+                                  Q_ARG(QPixmap, pixmap),
+                                  tabWidget->tabText(0).remove('&'),
+                                  Q_ARG(hyni::chat_api::QUESTION_TYPE, qType));
     }
 }
 
@@ -602,9 +604,11 @@ void HyniWindow::handleCapturedScreen(const QPixmap& pixmap) {
         qType = hyni::chat_api::QUESTION_TYPE::Coding;
     }
 
-    worker->sendImageRequest(pixmap,
-                             tabWidget->tabText(0).remove('&'),
-                             qType);
+    QMetaObject::invokeMethod(worker, "sendImageRequest",
+                              Qt::QueuedConnection,
+                              Q_ARG(QPixmap, pixmap),
+                              tabWidget->tabText(0).remove('&'),
+                              Q_ARG(hyni::chat_api::QUESTION_TYPE, qType));
 }
 
 void HyniWindow::sendText(bool resend) {
@@ -651,7 +655,10 @@ void HyniWindow::sendText(bool resend) {
     // Send requests
     if (!multiLanguage) {
         // For STAR and System Design (single response)
-        worker->sendRequest(enhancedPrompt, qType);
+        QMetaObject::invokeMethod(worker, "sendRequest",
+                                  Qt::QueuedConnection,
+                                  Q_ARG(QString, enhancedPrompt),
+                                  Q_ARG(hyni::chat_api::QUESTION_TYPE, qType));
     }
     else {
         // For Coding (language-specific responses)
@@ -659,7 +666,10 @@ void HyniWindow::sendText(bool resend) {
         langSpecificPrompt += hyni::CODING_EXT;
         langSpecificPrompt = langSpecificPrompt.arg(tabWidget->tabText(0).remove('&'));
 
-        worker->sendRequest(langSpecificPrompt, qType);
+        QMetaObject::invokeMethod(worker, "sendRequest",
+                                  Qt::QueuedConnection,
+                                  Q_ARG(QString, langSpecificPrompt),
+                                  Q_ARG(hyni::chat_api::QUESTION_TYPE, qType));
     }
 }
 
