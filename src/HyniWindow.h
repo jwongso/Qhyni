@@ -61,6 +61,7 @@ private:
 
     HighlightTableWidget* highlightTableWidget;
     QTextEdit* promptTextBox;
+    QRadioButton* generalOption;
     QRadioButton* amazonStarOption;
     QRadioButton* systemDesignOption;
     QRadioButton* codingOption;

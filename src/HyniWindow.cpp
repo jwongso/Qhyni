@@ -25,7 +25,7 @@ HyniWindow::HyniWindow(QWidget *parent)
     setMenuBar(menuBar);
     setupMenuBar(menuBar);
 
-    resize(900, 600);
+    resize(900, 800);
     setFocusPolicy(Qt::StrongFocus);
     setFocus();
 
@@ -54,15 +54,18 @@ HyniWindow::HyniWindow(QWidget *parent)
     QGroupBox *questionTypeBox = new QGroupBox(this);
     QHBoxLayout *questionTypeLayout = new QHBoxLayout(questionTypeBox);
 
+    generalOption = new QRadioButton("General", this);
     amazonStarOption = new QRadioButton("Amazon Behavioral (STAR)", this);
     systemDesignOption = new QRadioButton("System Design", this);
     codingOption = new QRadioButton("Coding", this);
     codingOption->setChecked(true);  // Default selection
 
+    generalOption->setToolTip("General questions");
     amazonStarOption->setToolTip("Behavioral questions (STAR format)");
     systemDesignOption->setToolTip("System architecture questions");
     codingOption->setToolTip("Coding problems (multi-language)");
 
+    questionTypeLayout->addWidget(generalOption);
     questionTypeLayout->addWidget(amazonStarOption);
     questionTypeLayout->addWidget(systemDesignOption);
     questionTypeLayout->addWidget(codingOption);
@@ -312,7 +315,11 @@ void HyniWindow::handleNeedAPIKey() {
 }
 
 void HyniWindow::toggleQuestionType() {
-    if (amazonStarOption->isChecked()) {
+    if (generalOption->isChecked()) {
+        amazonStarOption->setChecked(true);
+        statusBar()->showMessage("Mode: Amazon Behavioral (STAR)", 2000);
+    }
+    else if (amazonStarOption->isChecked()) {
         systemDesignOption->setChecked(true);
         statusBar()->showMessage("Mode: System Design", 2000);
     }
@@ -321,8 +328,8 @@ void HyniWindow::toggleQuestionType() {
         statusBar()->showMessage("Mode: Coding", 2000);
     }
     else {
-        amazonStarOption->setChecked(true);
-        statusBar()->showMessage("Mode: Amazon Behavioral (STAR)", 2000);
+        generalOption->setChecked(true);
+        statusBar()->showMessage("Mode: General", 2000);
     }
 }
 
@@ -555,12 +562,21 @@ void HyniWindow::captureScreen() {
         responseEditors.front()->setPlainText("Processing...");
         QApplication::processEvents();
 
+        hyni::chat_api::QUESTION_TYPE qType;
+
+        if (generalOption->isChecked()) {
+            qType = hyni::chat_api::QUESTION_TYPE::General;
+        } else if (amazonStarOption->isChecked()) {
+            qType = hyni::chat_api::QUESTION_TYPE::Behavioral;
+        } else if (systemDesignOption->isChecked()) {
+            qType = hyni::chat_api::QUESTION_TYPE::SystemDesign;
+        } else {
+            qType = hyni::chat_api::QUESTION_TYPE::Coding;
+        }
+
         worker->sendImageRequest(pixmap,
                                  tabWidget->tabText(0).remove('&'),
-                                 codingOption->isChecked() ?
-                                     hyni::chat_api::QUESTION_TYPE::Coding :
-                                     hyni::chat_api::QUESTION_TYPE::SystemDesign
-                                 );
+                                 qType);
     }
 }
 
@@ -574,12 +590,21 @@ void HyniWindow::handleCapturedScreen(const QPixmap& pixmap) {
     responseEditors.front()->setPlainText("Processing...");
     QApplication::processEvents();
 
+    hyni::chat_api::QUESTION_TYPE qType;
+
+    if (generalOption->isChecked()) {
+        qType = hyni::chat_api::QUESTION_TYPE::General;
+    } else if (amazonStarOption->isChecked()) {
+        qType = hyni::chat_api::QUESTION_TYPE::Behavioral;
+    } else if (systemDesignOption->isChecked()) {
+        qType = hyni::chat_api::QUESTION_TYPE::SystemDesign;
+    } else {
+        qType = hyni::chat_api::QUESTION_TYPE::Coding;
+    }
+
     worker->sendImageRequest(pixmap,
                              tabWidget->tabText(0).remove('&'),
-                             codingOption->isChecked() ?
-                                 hyni::chat_api::QUESTION_TYPE::Coding :
-                                 hyni::chat_api::QUESTION_TYPE::SystemDesign
-                             );
+                             qType);
 }
 
 void HyniWindow::sendText(bool resend) {
@@ -601,10 +626,12 @@ void HyniWindow::sendText(bool resend) {
     bool multiLanguage = true;
 
     // Set "Processing..." for relevant editors
-    if (amazonStarOption->isChecked()) {
-        // STAR question - only first tab (C++)
+    if (generalOption->isChecked()) {
+        qType = hyni::chat_api::QUESTION_TYPE::General;
+        multiLanguage = false;
+    }
+    else if (amazonStarOption->isChecked()) {
         qType = hyni::chat_api::QUESTION_TYPE::Behavioral;
-        responseEditors.first()->setPlainText("Processing...");
         multiLanguage = false;
     }
     else if (systemDesignOption->isChecked()) {
