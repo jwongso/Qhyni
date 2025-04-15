@@ -25,7 +25,7 @@ HyniWindow::HyniWindow(QWidget *parent)
     setMenuBar(menuBar);
     setupMenuBar(menuBar);
 
-    resize(900, 800);
+    resize(1200, 800);
     setFocusPolicy(Qt::StrongFocus);
     setFocus();
 
@@ -49,7 +49,7 @@ HyniWindow::HyniWindow(QWidget *parent)
     promptTextBox->setReadOnly(true);
     leftSplitter->addWidget(promptTextBox);
 
-    leftSplitter->setSizes({300, 200});
+    leftSplitter->setSizes({500, 300});
 
     QGroupBox *questionTypeBox = new QGroupBox(this);
     QHBoxLayout *questionTypeLayout = new QHBoxLayout(questionTypeBox);
@@ -89,7 +89,7 @@ HyniWindow::HyniWindow(QWidget *parent)
     addResponseTab("History");
 
     splitter->addWidget(tabWidget);
-    splitter->setSizes({400, 400});
+    splitter->setSizes({500, 700});
     mainLayout->addWidget(splitter);
 
     QPushButton *sendButton = new QPushButton("Send Selection", this);

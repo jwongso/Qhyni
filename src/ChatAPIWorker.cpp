@@ -88,8 +88,10 @@ void ChatAPIWorker::sendImageRequest(const QPixmap& pixmap,
             if (type == hyni::chat_api::QUESTION_TYPE::Coding) {
                 enhancedPrompt += hyni::CODING_EXT;
                 enhancedPrompt = enhancedPrompt.arg(language);
-            } else {
+            } else if (type == hyni::chat_api::QUESTION_TYPE::SystemDesign) {
                 enhancedPrompt += hyni::SYSTEM_DESIGN_EXT;
+            } else {
+                enhancedPrompt = "Solve the questions asked from the image.";
             }
 
             qDebug() << enhancedPrompt;
