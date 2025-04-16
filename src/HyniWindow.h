@@ -42,6 +42,7 @@ private slots:
     void handleNeedAPIKey();
     void captureScreen();
     void handleCapturedScreen(const QPixmap& pixmap);
+    void resendCapturedScreen();
     void receiveAudioData(const QByteArray& data);
     void onAISelectionChanged(QAction* action);
     void zoomInResponseBox();

@@ -19,6 +19,8 @@ public slots:
     void sendImageRequest(const QPixmap& pixmap,
                           const QString& language,
                           hyni::chat_api::QUESTION_TYPE type);
+    void resendImageRequest(const QString& language,
+                            hyni::chat_api::QUESTION_TYPE type);
     void sendRequest(const QString& message,
                      hyni::chat_api::QUESTION_TYPE type);
     void cancelCurrentRequest();
@@ -34,6 +36,7 @@ private:
     std::unique_ptr<hyni::chat_api> m_chatAPI;
     std::atomic<bool> m_isBusy{false};
     std::atomic<bool> m_cancelRequested{false};
+    std::string m_base64Image;
 };
 
 #endif // CHATAPI_WORKER_H

@@ -501,6 +501,12 @@ void HyniWindow::zoomOutResponseBox() {
 }
 
 void HyniWindow::keyPressEvent(QKeyEvent* event) {
+    if (event->key() == Qt::Key_R && (event->modifiers() & Qt::ControlModifier)) {
+        qDebug() << "CTRL + R detected!";
+        resendCapturedScreen();
+        return;
+    }
+
     switch(event->key()) {
     case Qt::Key_Left:
     case Qt::Key_Right:
@@ -607,6 +613,34 @@ void HyniWindow::handleCapturedScreen(const QPixmap& pixmap) {
     QMetaObject::invokeMethod(worker, "sendImageRequest",
                               Qt::QueuedConnection,
                               Q_ARG(QPixmap, pixmap),
+                              tabWidget->tabText(0).remove('&'),
+                              Q_ARG(hyni::chat_api::QUESTION_TYPE, qType));
+}
+
+void HyniWindow::resendCapturedScreen() {
+
+    if (worker->getProvider() == hyni::chat_api::API_PROVIDER::DeepSeek) {
+        statusBar()->showMessage("Image is not supported in the selected provider.", 5000);
+        return;
+    }
+
+    responseEditors.front()->setPlainText("Processing...");
+    QApplication::processEvents();
+
+    hyni::chat_api::QUESTION_TYPE qType;
+
+    if (generalOption->isChecked()) {
+        qType = hyni::chat_api::QUESTION_TYPE::General;
+    } else if (amazonStarOption->isChecked()) {
+        qType = hyni::chat_api::QUESTION_TYPE::Behavioral;
+    } else if (systemDesignOption->isChecked()) {
+        qType = hyni::chat_api::QUESTION_TYPE::SystemDesign;
+    } else {
+        qType = hyni::chat_api::QUESTION_TYPE::Coding;
+    }
+
+    QMetaObject::invokeMethod(worker, "resendImageRequest",
+                              Qt::QueuedConnection,
                               tabWidget->tabText(0).remove('&'),
                               Q_ARG(hyni::chat_api::QUESTION_TYPE, qType));
 }

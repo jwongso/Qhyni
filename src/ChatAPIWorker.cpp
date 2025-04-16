@@ -9,7 +9,7 @@
 #include <qthread.h>
 #include <QBuffer>
 
-std::string encodePixmapToBase64(const QPixmap& pixmap, const char* format = "PNG", int quality = 90) {
+std::string encodePixmapToBase64(const QPixmap& pixmap, const char* format = "PNG", int quality = 80) {
     QByteArray byteArray;
     QBuffer buffer(&byteArray);
     buffer.open(QIODevice::WriteOnly);
@@ -78,7 +78,7 @@ void ChatAPIWorker::sendImageRequest(const QPixmap& pixmap,
 
     try {
         // Encode QPixmap to base64 JPEG
-        const std::string base64Image = encodePixmapToBase64(pixmap, "PNG", 90);
+        m_base64Image = encodePixmapToBase64(pixmap, "PNG", 80);
 
         const bool wasCancelled = [&]() {
             if (m_cancelRequested.load()) return true;
@@ -97,11 +97,78 @@ void ChatAPIWorker::sendImageRequest(const QPixmap& pixmap,
             qDebug() << enhancedPrompt;
 
             auto response = m_chatAPI->send_image(
-                base64Image,
+                m_base64Image,
                 type,
                 enhancedPrompt.toStdString(),
                 1500,
                 0.7,
+                [this]() { return m_cancelRequested.load(); }
+                );
+
+            if (m_cancelRequested.load()) return true;
+
+            response = m_chatAPI->get_assistant_reply(response);
+            emit responseReceived(QString::fromStdString(response));
+            return false;
+        }();
+
+        if (wasCancelled) {
+            emit requestCancelled();
+        }
+    }
+    catch (const std::exception& e) {
+        if (!m_cancelRequested.load()) {
+            qWarning() << "Image API error:" << e.what();
+            emit errorOccurred(QString("Image API request failed: %1").arg(e.what()));
+        }
+    }
+
+    m_isBusy.store(false); // Reset busy flag
+}
+
+void ChatAPIWorker::resendImageRequest(const QString& language,
+                                       hyni::chat_api::QUESTION_TYPE type) {
+    if (m_base64Image.empty()) {
+        qDebug() << "Image base64 is empty";
+        return;
+    }
+
+
+    if (m_isBusy.exchange(true)) {
+        qDebug() << "Image request ignored - worker busy";
+        return;
+    }
+
+    if (!m_chatAPI->has_api_key()) {
+        emit needApiKey();
+        return;
+    }
+
+    m_cancelRequested.store(false);
+
+    try {
+        const bool wasCancelled = [&]() {
+            if (m_cancelRequested.load()) return true;
+
+            QString enhancedPrompt;
+
+            if (type == hyni::chat_api::QUESTION_TYPE::Coding) {
+                enhancedPrompt += hyni::CODING_OPTIMIZED;
+                enhancedPrompt = enhancedPrompt.arg(language);
+            } else if (type == hyni::chat_api::QUESTION_TYPE::SystemDesign) {
+                enhancedPrompt += hyni::SYSTEM_DESIGN_OPTIMIZED;
+            } else {
+                enhancedPrompt = "Solve the questions asked from the image.";
+            }
+
+            qDebug() << enhancedPrompt;
+
+            auto response = m_chatAPI->send_image(
+                m_base64Image,
+                type,
+                enhancedPrompt.toStdString(),
+                2000,
+                0.8,
                 [this]() { return m_cancelRequested.load(); }
                 );
 
